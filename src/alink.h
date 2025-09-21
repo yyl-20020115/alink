@@ -7,11 +7,10 @@
 #include <ctype.h>
 #include <errno.h>
 
-
 #ifdef _WIN32
 #define strcasecmp _stricmp
 #define strupr _strupr
-
+#define strdup _strdup
 #endif
 
 #define TRUE  (1==1)
@@ -499,22 +498,22 @@ typedef struct __comdatrec
 } COMDATREC, *PCOMDAT;
 
 int sort_compare(const void *x1,const void *x2);
-void combin_groups(long i,long j);
-void combin_common(PCHAR fname,long i,long j);
-void combine_segments(long i,long j);
+void combine_groups(PCHAR fname,long i,long j);
+void combine_common(PCHAR fname,long i,long j);
+void combine_segments(PCHAR fname,long i,long j);
 void combine_blocks(PCHAR fname);
 void output_win32_file(PCHAR outname);
 void output_exe_file(PCHAR outname);
 void output_com_file(PCHAR outname);
-void get_fixup_target(PRELOC r,long *tseg,UINT *tofs,int isFlat);
+void get_fixup_target(PCHAR fname,PRELOC r,long *tseg,UINT *tofs,int isFlat);
 void load_lib_mod(UINT libnum,UINT modpage);
-void load_lib(FILE *libfile,PCHAR libname);
-void load_coff_lib(FILE *libfile,PCHAR libname);
-void load_coff_lib_mod(PLIBFILE p,FILE *libfile, PCHAR name);
-long load_mod(FILE *objfile, PCHAR name);
-void load_resource(FILE *resfile, PCHAR name);
-void load_coff(FILE *objfile, PCHAR name);
-void load_coff_import(FILE *objfile, PCHAR name);
+void load_lib(PCHAR libname,FILE *libfile);
+void load_coff_lib(PCHAR libname,FILE *libfile);
+void load_coff_lib_mod(PCHAR name, PLIBFILE p, FILE* libfile);
+long load_mod(PCHAR name, FILE *objfile);
+void load_resource(PCHAR name, FILE *resfile);
+void load_coff(PCHAR name, FILE *objfile);
+void load_coff_import(PCHAR name, FILE* objfile);
 void load_fixup(PCHAR fname,PRELOC r,PUCHAR buf,long *p);
 void reloc_lidata(PCHAR fname,PDATABLOCK p,long *ofs,PRELOC r);
 void emit_lidata(PCHAR fname,PDATABLOCK p,long segnum,long *ofs);
@@ -534,7 +533,6 @@ void *check_realloc(void *p,size_t x);
 char *check_strdup(const char *s);
 PSORTENTRY binary_search(PSORTENTRY list,UINT count,char *key);
 void sort_insert(PSORTENTRY *plist,UINT *pcount,char *key,void *object);
-#define strdup _strdup
 
 extern char case_sensitive;
 extern char padsegments;

@@ -37,7 +37,7 @@ static void fix_public_groups(int src, int dest)
 	}
 }
 
-void combine_segments(long dest, long src)
+void combine_segments(PCHAR fname,long dest, long src)
 {
 	UINT k, n;
 	PUCHAR p, q;
@@ -236,7 +236,7 @@ void combine_segments(long dest, long src)
 	seglist[src] = 0;
 }
 
-void combin_common(PCHAR fname,long i, long j)
+void combine_common(PCHAR fname,long i, long j)
 {
 	UINT k, n;
 	PUCHAR p, q;
@@ -353,7 +353,7 @@ void combin_common(PCHAR fname,long i, long j)
 	seglist[j] = 0;
 }
 
-void combin_groups(long i, long j)
+void combine_groups(PCHAR fname,long i, long j)
 {
 	long n, m;
 	char match;
@@ -441,7 +441,7 @@ void combine_blocks(PCHAR fname)
 					if (seglist[j]->winFlags & WINF_COMDAT) continue;
 					if ((seglist[j]->attr & SEG_ALIGN) == SEG_ABS) continue;
 					if ((seglist[j]->attr & SEG_COMBINE) != SEG_STACK) continue;
-					combine_segments(i, j);
+					combine_segments(fname,i, j);
 				}
 				break;
 			case SEG_PUBLIC:
@@ -481,7 +481,7 @@ void combine_blocks(PCHAR fname)
 				/* then combine in that order */
 				for (j = 1; j < count; j++)
 				{
-					combine_segments(i, slist[j]);
+					combine_segments(fname,i, slist[j]);
 				}
 				free(slist);
 				break;
@@ -495,7 +495,7 @@ void combine_blocks(PCHAR fname)
 						&& !(seglist[j]->winFlags & WINF_COMDAT)
 						)
 					{
-						combin_common(fname,i, j);
+						combine_common(fname,i, j);
 					}
 				}
 				break;
@@ -514,7 +514,7 @@ void combine_blocks(PCHAR fname)
 				if (!grplist[j]) continue;
 				if (strcmp(namelist[grplist[i]->nameindex], namelist[grplist[j]->nameindex]) == 0)
 				{
-					combin_groups(i, j);
+					combine_groups(fname,i, j);
 				}
 			}
 		}

@@ -1454,22 +1454,22 @@ static void load_files()
 		switch (j)
 		{
 		case LIBHDR:
-			load_lib(afile, filename[i]);
+			load_lib(filename[i], afile);
 			break;
 		case THEADR:
 		case LHEADR:
-			load_mod(afile, filename[i]);
+			load_mod(filename[i], afile);
 			break;
 		case 0:
-			load_resource(afile, filename[i]);
+			load_resource(filename[i], afile);
 			break;
 		case 0x4c:
 		case 0x4d:
 		case 0x4e:
-			load_coff(afile, filename[i]);
+			load_coff(filename[i], afile);
 			break;
 		case 0x21:
-			load_coff_lib(afile, filename[i]);
+			load_coff_lib(filename[i], afile);
 			break;
 		default:
 			printf("Unknown file type\n");

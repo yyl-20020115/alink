@@ -1,6 +1,6 @@
 #include "alink.h"
 
-static unsigned char defaultStub[] = {
+static unsigned char default_stub[] = {
 	0x4D,0x5A,0x6C,0x00,0x01,0x00,0x00,0x00,
 	0x04,0x00,0x11,0x00,0xFF,0xFF,0x03,0x00,
 	0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -17,13 +17,15 @@ static unsigned char defaultStub[] = {
 	0x32,0x0D,0x0A,0x24
 };
 
-static UINT defaultStubSize = sizeof(defaultStub);
+static UINT defaultStubSize = sizeof(default_stub);
 
-void get_fixup_target(PRELOC r, long* bseg, UINT* tofs, int isFlat)
+void get_fixup_target(PCHAR fname, PRELOC r, long* bseg, UINT* tofs, int isFlat)
 {
 	long baseseg;
 	long targseg;
 	UINT targofs;
+	
+	if (r->segnum < 0) return;
 
 	r->outputPos = seglist[r->segnum]->base + r->ofs;
 	switch (r->ftype)
@@ -141,7 +143,9 @@ void get_fixup_target(PRELOC r, long* bseg, UINT* tofs, int isFlat)
 	if (targseg < 0)
 	{
 		printf("undefined seg\n");
-		exit(1);
+		//NOTICE:
+		return;
+		//exit(1);
 	}
 	if ((!errcount) && (!seglist[targseg]))
 	{
@@ -227,7 +231,7 @@ void output_com_file(PCHAR outname)
 	errcount = 0;
 	if (gotstart)
 	{
-		get_fixup_target(&startaddr, &startaddr.segnum, &startaddr.ofs, FALSE);
+		get_fixup_target(outname,&startaddr, &startaddr.segnum, &startaddr.ofs, FALSE);
 		if (errcount)
 		{
 			printf("Invalid start address record\n");
@@ -246,7 +250,7 @@ void output_com_file(PCHAR outname)
 
 	for (i = 0; i < fixcount; i++)
 	{
-		get_fixup_target(relocs[i], &targseg, &targofs, FALSE);
+		get_fixup_target(outname, relocs[i], &targseg, &targofs, FALSE);
 		switch (relocs[i]->rtype)
 		{
 		case FIX_BASE:
@@ -490,7 +494,7 @@ void output_exe_file(PCHAR outname)
 
 	if (impsreq)
 	{
-		report_error(outname,ERR_ILLEGAL_IMPORTS);
+		report_error(outname, ERR_ILLEGAL_IMPORTS);
 	}
 
 	errcount = 0;
@@ -511,7 +515,7 @@ void output_exe_file(PCHAR outname)
 
 	if (gotstart)
 	{
-		get_fixup_target(&startaddr, &startaddr.segnum, &startaddr.ofs, FALSE);
+		get_fixup_target(outname, &startaddr, &startaddr.segnum, &startaddr.ofs, FALSE);
 		if (errcount)
 		{
 			printf("Invalid start address record\n");
@@ -583,7 +587,7 @@ void output_exe_file(PCHAR outname)
 
 	for (i = 0; i < fixcount; i++)
 	{
-		get_fixup_target(relocs[i], &targseg, &targofs, FALSE);
+		get_fixup_target(outname,relocs[i], &targseg, &targofs, FALSE);
 		switch (relocs[i]->rtype)
 		{
 		case FIX_BASE:
@@ -1158,7 +1162,7 @@ static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
 	/* do fixups */
 	for (i = 0; i < fixcount; i++)
 	{
-		get_fixup_target(relocs[i], &targseg, &targofs, TRUE);
+		get_fixup_target(outname,relocs[i], &targseg, &targofs, TRUE);
 		switch (relocs[i]->rtype)
 		{
 		case FIX_BASE:
@@ -2349,7 +2353,7 @@ static void get_stub(PUCHAR* pstubData, UINT* pstubSize)
 	}
 	else
 	{
-		(*pstubData) = defaultStub;
+		(*pstubData) = default_stub;
 		(*pstubSize) = defaultStubSize;
 	}
 }
@@ -2594,7 +2598,7 @@ void output_win32_file(PCHAR outname)
 	/* get start address */
 	if (gotstart)
 	{
-		get_fixup_target(&startaddr, &startaddr.segnum, &startaddr.ofs, TRUE);
+		get_fixup_target(outname ,&startaddr, &startaddr.segnum, &startaddr.ofs, TRUE);
 		if (errcount)
 		{
 			printf("Invalid start address record\n");

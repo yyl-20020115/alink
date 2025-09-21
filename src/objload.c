@@ -356,7 +356,7 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 	*p = j;
 }
 
-long load_mod(FILE* objfile, PCHAR fname)
+long load_mod(PCHAR fname, FILE* objfile)
 {
 	long modpos;
 	long done;
@@ -1297,7 +1297,7 @@ long load_mod(FILE* objfile, PCHAR fname)
 	return 0;
 }
 
-void load_lib(FILE* libfile, PCHAR libname)
+void load_lib(PCHAR libname, FILE* libfile)
 {
 	unsigned int i, j, k, n;
 	PCHAR name;
@@ -1404,10 +1404,10 @@ void load_lib_mod(UINT libnum, UINT modpage)
 	switch (p->libtype)
 	{
 	case 'O':
-		load_mod(libfile, p->filename);
+		load_mod(p->filename, libfile);
 		break;
 	case 'C':
-		load_coff_lib_mod(p, libfile, p->filename);
+		load_coff_lib_mod(p->filename, p, libfile);
 		break;
 	default:
 		printf("Unknown library file format\n");
@@ -1419,7 +1419,7 @@ void load_lib_mod(UINT libnum, UINT modpage)
 	fclose(libfile);
 }
 
-void load_resource(FILE* f, PCHAR name)
+void load_resource(PCHAR name, FILE* f)
 {
 	unsigned char buf[32];
 	static unsigned char buf2[32] = { 0,0,0,0,0x20,0,0,0,0xff,0xff,0,0,0xff,0xff,0,0,

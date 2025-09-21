@@ -1,6 +1,6 @@
 #include "alink.h"
 
-void load_coff_lib(FILE* libfile, PCHAR libname)
+void load_coff_lib(PCHAR libname, FILE* libfile)
 {
 	UINT i, j;
 	UINT numsyms;
@@ -280,7 +280,7 @@ void load_coff_lib(FILE* libfile, PCHAR libname)
 	libcount++;
 }
 
-void load_coff_lib_mod(PLIBFILE p, FILE* libfile, PCHAR fname)
+void load_coff_lib_mod(PCHAR fname, PLIBFILE p, FILE* libfile)
 {
 	char* name;
 	UINT ofs;
@@ -319,5 +319,5 @@ void load_coff_lib_mod(PLIBFILE p, FILE* libfile, PCHAR fname)
 	}
 
 	printf("Loading module %s\n", name);
-	load_coff(libfile, name);
+	load_coff(name, libfile);
 }

@@ -1,6 +1,6 @@
 #include "alink.h"
 
-void load_coff(FILE* objfile, PCHAR fname)
+void load_coff(PCHAR fname, FILE* objfile)
 {
 	unsigned char headbuf[20];
 	unsigned char buf[100];
@@ -44,7 +44,7 @@ void load_coff(FILE* objfile, PCHAR fname)
 		/* if we've got an import module, start at the beginning */
 		fseek(objfile, fileStart, SEEK_SET);
 		/* and load it */
-		load_coff_import(objfile, fname);
+		load_coff_import(fname, objfile);
 		return;
 	}
 
@@ -694,7 +694,7 @@ void load_coff(FILE* objfile, PCHAR fname)
 	if (stringList) free(stringList);
 }
 
-void load_coff_import(FILE* objfile, PCHAR name)
+void load_coff_import(PCHAR name, FILE* objfile)
 {
 	UINT fileStart;
 	UINT thiscpu;
