@@ -7,6 +7,13 @@
 #include <ctype.h>
 #include <errno.h>
 
+
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#define strupr _strupr
+
+#endif
+
 #define TRUE  (1==1)
 #define FALSE (1==0)
 
@@ -113,6 +120,10 @@
 #define COMENT_LOCAL 0xe6
 #define COMENT_ENDSCOPE 0xe7
 #define COMENT_SOURCEFILE 0xe8
+/* Directive to disassemblers           */
+#define COMENT_DISASM_DIRECTIVE 0xfd
+/* Linker directive                     */
+#define COMENT_LINKER_DIRECTIVE 0xfe
 
 #define EXT_IMPDEF 0x01
 #define EXT_EXPDEF 0x02
@@ -487,43 +498,43 @@ typedef struct __comdatrec
     UINT linkwith;
 } COMDATREC, *PCOMDAT;
 
-int sortCompare(const void *x1,const void *x2);
-void processArgs(int argc,char *argv[]);
-void combine_groups(long i,long j);
-void combine_common(long i,long j);
+int sort_compare(const void *x1,const void *x2);
+void process_command_line(int argc,char *argv[]);
+void combin_groups(long i,long j);
+void combin_common(long i,long j);
 void combine_segments(long i,long j);
-void combineBlocks();
-void OutputWin32file(PCHAR outname);
-void OutputEXEfile(PCHAR outname);
-void OutputCOMfile(PCHAR outname);
-void GetFixupTarget(PRELOC r,long *tseg,UINT *tofs,int isFlat);
-void loadlibmod(UINT libnum,UINT modpage);
-void loadlib(FILE *libfile,PCHAR libname);
-void loadCoffLib(FILE *libfile,PCHAR libname);
-void loadcofflibmod(PLIBFILE p,FILE *libfile);
-long loadmod(FILE *objfile);
-void loadres(FILE *resfile);
-void loadcoff(FILE *objfile);
-void loadCoffImport(FILE *objfile);
-void LoadFIXUP(PRELOC r,PUCHAR buf,long *p);
-void RelocLIDATA(PDATABLOCK p,long *ofs,PRELOC r);
-void EmitLiData(PDATABLOCK p,long segnum,long *ofs);
-PDATABLOCK BuildLiData(long *bufofs);
-void DestroyLIDATA(PDATABLOCK p);
-void ReportError(long errnum);
-long GetIndex(PUCHAR buf,long *index);
-void ClearNbit(PUCHAR mask,long i);
-void SetNbit(PUCHAR mask,long i);
-char GetNbit(PUCHAR mask,long i);
+void combine_blocks();
+void output_win32_file(PCHAR outname);
+void output_exe_file(PCHAR outname);
+void output_com_file(PCHAR outname);
+void get_fixup_target(PRELOC r,long *tseg,UINT *tofs,int isFlat);
+void load_lib_mod(UINT libnum,UINT modpage);
+void load_lib(FILE *libfile,PCHAR libname);
+void load_coff_lib(FILE *libfile,PCHAR libname);
+void load_coff_lib_mod(PLIBFILE p,FILE *libfile);
+long load_mod(FILE *objfile);
+void load_resource(FILE *resfile);
+void load_coff(FILE *objfile);
+void load_coff_import(FILE *objfile);
+void load_fixup(PRELOC r,PUCHAR buf,long *p);
+void reloc_lidata(PDATABLOCK p,long *ofs,PRELOC r);
+void emit_lidata(PDATABLOCK p,long segnum,long *ofs);
+PDATABLOCK build_lidata(long *bufofs);
+void destroy_lidata(PDATABLOCK p);
+void report_error(long errnum);
+long get_index(PUCHAR buf,long *index);
+void clear_n_bit(PUCHAR mask,long i);
+void set_n_bit(PUCHAR mask,long i);
+char get_n_bit(PUCHAR mask,long i);
 int wstricmp(const char *s1,const char*s2);
 int wstrlen(const char *s);
 unsigned short wtoupper(unsigned short a);
-int getBitCount(UINT a);
-void *checkMalloc(size_t x);
-void *checkRealloc(void *p,size_t x);
-char *checkStrdup(const char *s);
-PSORTENTRY binarySearch(PSORTENTRY list,UINT count,char *key);
-void sortedInsert(PSORTENTRY *plist,UINT *pcount,char *key,void *object);
+int get_bit_count(UINT a);
+void *check_malloc(size_t x);
+void *check_realloc(void *p,size_t x);
+char *check_strdup(const char *s);
+PSORTENTRY binary_search(PSORTENTRY list,UINT count,char *key);
+void sort_insert(PSORTENTRY *plist,UINT *pcount,char *key,void *object);
 #define strdup _strdup
 
 extern char case_sensitive;
