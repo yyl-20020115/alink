@@ -58,7 +58,7 @@ PDATABLOCK build_lidata(long* bufofs)
 	return p;
 }
 
-void emit_lidata(PCHAR fname,PDATABLOCK p, long segnum, long* ofs)
+void emit_lidata(PCHAR fname, PDATABLOCK p, long segnum, long* ofs)
 {
 	long i, j;
 
@@ -68,7 +68,7 @@ void emit_lidata(PCHAR fname,PDATABLOCK p, long segnum, long* ofs)
 		{
 			for (j = 0; j < p->blocks; j++)
 			{
-				emit_lidata(fname,((PPDATABLOCK)p->data)[j], segnum, ofs);
+				emit_lidata(fname, ((PPDATABLOCK)p->data)[j], segnum, ofs);
 			}
 		}
 		else
@@ -93,7 +93,7 @@ void emit_lidata(PCHAR fname,PDATABLOCK p, long segnum, long* ofs)
 	}
 }
 
-void reloc_lidata(PCHAR fname,PDATABLOCK p, long* ofs, PRELOC r)
+void reloc_lidata(PCHAR fname, PDATABLOCK p, long* ofs, PRELOC r)
 {
 	long i, j;
 
@@ -103,7 +103,7 @@ void reloc_lidata(PCHAR fname,PDATABLOCK p, long* ofs, PRELOC r)
 		{
 			for (j = 0; j < p->blocks; j++)
 			{
-				reloc_lidata(fname,((PPDATABLOCK)p->data)[j], ofs, r);
+				reloc_lidata(fname, ((PPDATABLOCK)p->data)[j], ofs, r);
 			}
 		}
 		else
@@ -126,7 +126,7 @@ void reloc_lidata(PCHAR fname,PDATABLOCK p, long* ofs, PRELOC r)
 	}
 }
 
-void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
+void load_fixup(PCHAR fname, PRELOC r, PUCHAR buf, long* p)
 {
 	long j;
 	int thrednum;
@@ -161,7 +161,7 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 		case REL_LILEFRAME:
 		case REL_TARGETFRAME:
 			break;
-		default: 
+		default:
 		{
 			report_error(fname, ERR_BAD_FIXUP);
 		}
@@ -173,7 +173,7 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 			r->frame += segmin - 1;
 			break;
 		}
-		case REL_GRPFRAME: 
+		case REL_GRPFRAME:
 		{
 			r->frame += grpmin - 1;
 			break;
@@ -807,7 +807,8 @@ long load_mod(PCHAR fname, FILE* objfile)
 				prevofs += (buf[j] + ((UINT)buf[j + 1] << 8)) << 16;
 				j += 2;
 			}
-			for (k = 0; j < reclength; j++, k++)
+			//NOTICE: reclength includes checksum byte
+			for (k = 0; j < reclength - 1; j++, k++)
 			{
 				if ((prevofs + k) >= seglist[prevseg]->length)
 				{
@@ -1371,7 +1372,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 			break;
 		}
 		default:
-			report_error(fname,ERR_UNKNOWN_RECTYPE);
+			report_error(fname, ERR_UNKNOWN_RECTYPE);
 		}
 		filepos += 4 + reclength;
 		modpos += 4 + reclength;
