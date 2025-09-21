@@ -280,7 +280,7 @@ void load_coff_lib(FILE* libfile, PCHAR libname)
 	libcount++;
 }
 
-void load_coff_lib_mod(PLIBFILE p, FILE* libfile)
+void load_coff_lib_mod(PLIBFILE p, FILE* libfile, PCHAR fname)
 {
 	char* name;
 	UINT ofs;
@@ -319,5 +319,5 @@ void load_coff_lib_mod(PLIBFILE p, FILE* libfile)
 	}
 
 	printf("Loading module %s\n", name);
-	load_coff(libfile);
+	load_coff(libfile, name);
 }

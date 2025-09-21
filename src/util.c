@@ -43,11 +43,11 @@ long get_index(PUCHAR buf, long* index)
 	}
 }
 
-void report_error(long errnum)
+void report_error(PCHAR fname,long errnum)
 {
 	UINT tot, i;
 
-	printf("\nError in file at %08lX", filepos);
+	printf("\nError in file %s at %08lX", fname, filepos);
 	switch (errnum)
 	{
 	case ERR_EXTRA_DATA:
@@ -122,8 +122,10 @@ void report_error(long errnum)
 
 	for (i = 0, tot = 0; i < segcount; i++)
 	{
-		if (seglist[i] && seglist[i]->data)
+		if (seglist[i] && seglist[i]->data) {
 			tot += seglist[i]->length;
+			//printf("segment %d size=%08X\n", i, seglist[i]->length);
+		}
 	}
 	printf("total segment size=%08X\n", tot);
 

@@ -58,7 +58,7 @@ PDATABLOCK build_lidata(long* bufofs)
 	return p;
 }
 
-void emit_lidata(PDATABLOCK p, long segnum, long* ofs)
+void emit_lidata(PCHAR fname,PDATABLOCK p, long segnum, long* ofs)
 {
 	long i, j;
 
@@ -68,7 +68,7 @@ void emit_lidata(PDATABLOCK p, long segnum, long* ofs)
 		{
 			for (j = 0; j < p->blocks; j++)
 			{
-				emit_lidata(((PPDATABLOCK)p->data)[j], segnum, ofs);
+				emit_lidata(fname,((PPDATABLOCK)p->data)[j], segnum, ofs);
 			}
 		}
 		else
@@ -77,13 +77,13 @@ void emit_lidata(PDATABLOCK p, long segnum, long* ofs)
 			{
 				if ((*ofs) >= seglist[segnum]->length)
 				{
-					report_error(ERR_INV_DATA);
+					report_error(fname, ERR_INV_DATA);
 				}
 				if (get_n_bit(seglist[segnum]->datmask, *ofs))
 				{
 					if (seglist[segnum]->data[*ofs] != ((PUCHAR)p->data)[j + 1])
 					{
-						report_error(ERR_OVERWRITE);
+						report_error(fname, ERR_OVERWRITE);
 					}
 				}
 				seglist[segnum]->data[*ofs] = ((PUCHAR)p->data)[j + 1];
@@ -93,7 +93,7 @@ void emit_lidata(PDATABLOCK p, long segnum, long* ofs)
 	}
 }
 
-void reloc_lidata(PDATABLOCK p, long* ofs, PRELOC r)
+void reloc_lidata(PCHAR fname,PDATABLOCK p, long* ofs, PRELOC r)
 {
 	long i, j;
 
@@ -103,7 +103,7 @@ void reloc_lidata(PDATABLOCK p, long* ofs, PRELOC r)
 		{
 			for (j = 0; j < p->blocks; j++)
 			{
-				reloc_lidata(((PPDATABLOCK)p->data)[j], ofs, r);
+				reloc_lidata(fname,((PPDATABLOCK)p->data)[j], ofs, r);
 			}
 		}
 		else
@@ -113,7 +113,7 @@ void reloc_lidata(PDATABLOCK p, long* ofs, PRELOC r)
 			{
 				if ((j < 5) || ((li_le == PREV_LI32) && (j < 7)))
 				{
-					report_error(ERR_BAD_FIXUP);
+					report_error(fname, ERR_BAD_FIXUP);
 				}
 				relocs = (PPRELOC)check_realloc(relocs, (fixcount + 1) * sizeof(PRELOC));
 				relocs[fixcount] = check_malloc(sizeof(RELOC));
@@ -126,7 +126,7 @@ void reloc_lidata(PDATABLOCK p, long* ofs, PRELOC r)
 	}
 }
 
-void load_fixup(PRELOC r, PUCHAR buf, long* p)
+void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 {
 	long j;
 	int thrednum;
@@ -142,7 +142,7 @@ void load_fixup(PRELOC r, PUCHAR buf, long* p)
 		thrednum = r->ftype & THRED_MASK;
 		if (thrednum > 3)
 		{
-			report_error(ERR_BAD_FIXUP);
+			report_error(fname, ERR_BAD_FIXUP);
 		}
 		r->ftype = (f_thred[thrednum] >> 2) & 7;
 		switch (r->ftype)
@@ -153,14 +153,14 @@ void load_fixup(PRELOC r, PUCHAR buf, long* p)
 			r->frame = f_thredindex[thrednum];
 			if (!r->frame)
 			{
-				report_error(ERR_BAD_FIXUP);
+				report_error(fname, ERR_BAD_FIXUP);
 			}
 			break;
 		case REL_LILEFRAME:
 		case REL_TARGETFRAME:
 			break;
 		default:
-			report_error(ERR_BAD_FIXUP);
+			report_error(fname, ERR_BAD_FIXUP);
 		}
 		switch (r->ftype)
 		{
@@ -190,14 +190,14 @@ void load_fixup(PRELOC r, PUCHAR buf, long* p)
 			r->frame = get_index(buf, &j);
 			if (!r->frame)
 			{
-				report_error(ERR_BAD_FIXUP);
+				report_error(fname, ERR_BAD_FIXUP);
 			}
 			break;
 		case REL_LILEFRAME:
 		case REL_TARGETFRAME:
 			break;
 		default:
-			report_error(ERR_BAD_FIXUP);
+			report_error(fname, ERR_BAD_FIXUP);
 		}
 		switch (r->ftype)
 		{
@@ -239,13 +239,13 @@ void load_fixup(PRELOC r, PUCHAR buf, long* p)
 		case REL_EXTONLY:
 			if (!r->target)
 			{
-				report_error(ERR_BAD_FIXUP);
+				report_error(fname, ERR_BAD_FIXUP);
 			}
 			break;
 		case REL_EXPFRAME:
 			break;
 		default:
-			report_error(ERR_BAD_FIXUP);
+			report_error(fname, ERR_BAD_FIXUP);
 		}
 		switch (r->ttype)
 		{
@@ -284,13 +284,13 @@ void load_fixup(PRELOC r, PUCHAR buf, long* p)
 		case REL_EXTONLY:
 			if (!r->target)
 			{
-				report_error(ERR_BAD_FIXUP);
+				report_error(fname, ERR_BAD_FIXUP);
 			}
 			break;
 		case REL_EXPFRAME:
 			break;
 		default:
-			report_error(ERR_BAD_FIXUP);
+			report_error(fname, ERR_BAD_FIXUP);
 		}
 		switch (r->ttype)
 		{
@@ -356,7 +356,7 @@ void load_fixup(PRELOC r, PUCHAR buf, long* p)
 	*p = j;
 }
 
-long load_mod(FILE* objfile)
+long load_mod(FILE* objfile, PCHAR fname)
 {
 	long modpos;
 	long done;
@@ -376,18 +376,18 @@ long load_mod(FILE* objfile)
 	{
 		if (fread(buf, 1, 3, objfile) != 3)
 		{
-			report_error(ERR_NO_MODEND);
+			report_error(fname, ERR_NO_MODEND);
 		}
 		rectype = buf[0];
 		reclength = buf[1] + 256 * buf[2];
 		if (fread(buf, 1, reclength, afile) != reclength)
 		{
-			report_error(ERR_NO_RECDATA);
+			report_error(fname, ERR_NO_RECDATA);
 		}
 		reclength--; /* remove checksum */
 		if ((!modpos) && (rectype != THEADR) && (rectype != LHEADR))
 		{
-			report_error(ERR_NO_HEADER);
+			report_error(fname, ERR_NO_HEADER);
 		}
 		switch (rectype)
 		{
@@ -395,7 +395,7 @@ long load_mod(FILE* objfile)
 		case LHEADR:
 			if (modpos)
 			{
-				report_error(ERR_EXTRA_HEADER);
+				report_error(fname, ERR_EXTRA_HEADER);
 			}
 			modname = check_realloc(modname, (nummods + 1) * sizeof(PCHAR));
 			modname[nummods] = check_malloc(buf[0] + 1);
@@ -408,7 +408,7 @@ long load_mod(FILE* objfile)
 			//printf("Loading module %s\n",modname[nummods]);
 			if ((buf[0] + 1) != reclength)
 			{
-				report_error(ERR_EXTRA_DATA);
+				report_error(fname, ERR_EXTRA_DATA);
 			}
 			namemin = namecount;
 			segmin = segcount;
@@ -458,7 +458,7 @@ long load_mod(FILE* objfile)
 				case COMENT_OMFEXT:
 					if (reclength < 4)
 					{
-						report_error(ERR_INVALID_COMENT);
+						report_error(fname, ERR_INVALID_COMENT);
 					}
 					switch (buf[2])
 					{
@@ -466,7 +466,7 @@ long load_mod(FILE* objfile)
 						j = 4;
 						if (reclength < (j + 4))
 						{
-							report_error(ERR_INVALID_COMENT);
+							report_error(fname, ERR_INVALID_COMENT);
 						}
 						impdefs = check_realloc(impdefs, (impcount + 1) * sizeof(IMPREC));
 						impdefs[impcount].flags = buf[3];
@@ -563,7 +563,7 @@ long load_mod(FILE* objfile)
 						expcount++;
 						break;
 					default:
-						report_error(ERR_INVALID_COMENT);
+						report_error(fname, ERR_INVALID_COMENT);
 					}
 					break;
 				case COMENT_DOSSEG:
@@ -657,7 +657,7 @@ long load_mod(FILE* objfile)
 				{
 					if ((seglist[segcount]->attr & SEG_ALIGN) != SEG_ABS)
 					{
-						report_error(ERR_SEG_TOO_LARGE);
+						report_error(fname, ERR_SEG_TOO_LARGE);
 					}
 				}
 			}
@@ -707,12 +707,12 @@ long load_mod(FILE* objfile)
 				seglist[segcount]->attr |= SEG_BYTE;
 				break;
 			default:
-				report_error(ERR_BAD_SEGDEF);
+				report_error(fname, ERR_BAD_SEGDEF);
 				break;
 			}
 			if ((seglist[segcount]->attr & SEG_ALIGN) == SEG_BADALIGN)
 			{
-				report_error(ERR_BAD_SEGDEF);
+				report_error(fname, ERR_BAD_SEGDEF);
 			}
 			if ((seglist[segcount]->classindex >= 0) &&
 				(!strcasecmp(namelist[seglist[segcount]->classindex], "CODE") ||
@@ -737,12 +737,12 @@ long load_mod(FILE* objfile)
 			prevseg = get_index(buf, &j) - 1;
 			if (prevseg < 0)
 			{
-				report_error(ERR_INV_SEG);
+				report_error(fname, ERR_INV_SEG);
 			}
 			prevseg += segmin;
 			if ((seglist[prevseg]->attr & SEG_ALIGN) == SEG_ABS)
 			{
-				report_error(ERR_ABS_SEG);
+				report_error(fname, ERR_ABS_SEG);
 			}
 			prevofs = buf[j] + (((UINT)buf[j + 1]) << 8);
 			j += 2;
@@ -755,14 +755,14 @@ long load_mod(FILE* objfile)
 			{
 				if ((prevofs + k) >= seglist[prevseg]->length)
 				{
-					report_error(ERR_INV_DATA);
+					report_error(fname, ERR_INV_DATA);
 				}
 				if (get_n_bit(seglist[prevseg]->datmask, prevofs + k))
 				{
 					if (seglist[prevseg]->data[prevofs + k] != buf[j])
 					{
 						printf("%08lX: %08lX: %i, %li,%li,%li\n", prevofs + k, j, get_n_bit(seglist[prevseg]->datmask, prevofs + k), segcount, segmin, prevseg);
-						report_error(ERR_OVERWRITE);
+						report_error(fname, ERR_OVERWRITE);
 					}
 				}
 				seglist[prevseg]->data[prevofs + k] = buf[j];
@@ -780,12 +780,12 @@ long load_mod(FILE* objfile)
 			prevseg = get_index(buf, &j) - 1;
 			if (prevseg < 0)
 			{
-				report_error(ERR_INV_SEG);
+				report_error(fname, ERR_INV_SEG);
 			}
 			prevseg += segmin;
 			if ((seglist[prevseg]->attr & SEG_ALIGN) == SEG_ABS)
 			{
-				report_error(ERR_ABS_SEG);
+				report_error(fname, ERR_ABS_SEG);
 			}
 			prevofs = buf[j] + (buf[j + 1] << 8);
 			j += 2;
@@ -806,7 +806,7 @@ long load_mod(FILE* objfile)
 			lidata->count = 1;
 
 			k = prevofs;
-			emit_lidata(lidata, prevseg, &k);
+			emit_lidata(fname,lidata, prevseg, &k);
 			li_le = (rectype == LIDATA) ? PREV_LI : PREV_LI32;
 			break;
 		case LPUBDEF:
@@ -927,7 +927,7 @@ long load_mod(FILE* objfile)
 			grplist[grpcount]->nameindex = get_index(buf, &j) - 1 + namemin;
 			if (grplist[grpcount]->nameindex < namemin)
 			{
-				report_error(ERR_BAD_GRPDEF);
+				report_error(fname, ERR_BAD_GRPDEF);
 			}
 			grplist[grpcount]->numsegs = 0;
 			while (j < reclength)
@@ -938,14 +938,14 @@ long load_mod(FILE* objfile)
 					i = get_index(buf, &j) - 1 + segmin;
 					if (i < segmin)
 					{
-						report_error(ERR_BAD_GRPDEF);
+						report_error(fname, ERR_BAD_GRPDEF);
 					}
 					grplist[grpcount]->segindex[grplist[grpcount]->numsegs] = i;
 					grplist[grpcount]->numsegs++;
 				}
 				else
 				{
-					report_error(ERR_BAD_GRPDEF);
+					report_error(fname, ERR_BAD_GRPDEF);
 				}
 			}
 			grpcount++;
@@ -960,7 +960,7 @@ long load_mod(FILE* objfile)
 					/* FIXUP subrecord */
 					if (!li_le)
 					{
-						report_error(ERR_BAD_FIXUP);
+						report_error(fname, ERR_BAD_FIXUP);
 					}
 					r = check_malloc(sizeof(RELOC));
 					r->rtype = (buf[j] >> 2);
@@ -987,9 +987,9 @@ long load_mod(FILE* objfile)
 					case FIX_SELF_OFS32_2:
 						break;
 					default:
-						report_error(ERR_BAD_FIXUP);
+						report_error(fname, ERR_BAD_FIXUP);
 					}
-					load_fixup(r, buf, &j);
+					load_fixup(fname,r, buf, &j);
 
 					if (li_le == PREV_LE)
 					{
@@ -1003,7 +1003,7 @@ long load_mod(FILE* objfile)
 					{
 						r->segnum = prevseg;
 						i = prevofs;
-						reloc_lidata(lidata, &i, r);
+						reloc_lidata(fname,lidata, &i, r);
 						free(r);
 					}
 				}
@@ -1094,17 +1094,17 @@ long load_mod(FILE* objfile)
 		case MODEND32:
 			done = 1;
 			if (buf[0] & 0x40)
-			{
+			{ 
 				if (gotstart)
 				{
-					report_error(ERR_MULTIPLE_STARTS);
+					report_error(fname, ERR_MULTIPLE_STARTS);
 				}
 				gotstart = 1;
 				j = 1;
-				load_fixup(&startaddr, buf, &j);
+				load_fixup(fname, &startaddr, buf, &j);
 				if (startaddr.ftype == REL_LILEFRAME)
 				{
-					report_error(ERR_BAD_FIXUP);
+					report_error(fname, ERR_BAD_FIXUP);
 				}
 			}
 			break;
@@ -1285,7 +1285,7 @@ long load_mod(FILE* objfile)
 			free(name);
 			break;
 		default:
-			report_error(ERR_UNKNOWN_RECTYPE);
+			report_error(fname,ERR_UNKNOWN_RECTYPE);
 		}
 		filepos += 4 + reclength;
 		modpos += 4 + reclength;
@@ -1404,10 +1404,10 @@ void load_lib_mod(UINT libnum, UINT modpage)
 	switch (p->libtype)
 	{
 	case 'O':
-		load_mod(libfile);
+		load_mod(libfile, p->filename);
 		break;
 	case 'C':
-		load_coff_lib_mod(p, libfile);
+		load_coff_lib_mod(p, libfile, p->filename);
 		break;
 	default:
 		printf("Unknown library file format\n");
@@ -1419,7 +1419,7 @@ void load_lib_mod(UINT libnum, UINT modpage)
 	fclose(libfile);
 }
 
-void load_resource(FILE* f)
+void load_resource(FILE* f, PCHAR name)
 {
 	unsigned char buf[32];
 	static unsigned char buf2[32] = { 0,0,0,0,0x20,0,0,0,0xff,0xff,0,0,0xff,0xff,0,0,
@@ -1447,7 +1447,7 @@ void load_resource(FILE* f)
 		{
 			fseek(f, 4 - (i & 3), SEEK_CUR);
 		}
-		i = fread(buf, 1, 8, f);
+		i = (UINT)fread(buf, 1, 8, f);
 		if (i == 0 && feof(f)) return;
 		if (i != 8)
 		{

@@ -221,7 +221,7 @@ void output_com_file(PCHAR outname)
 
 	if (impsreq)
 	{
-		report_error(ERR_ILLEGAL_IMPORTS);
+		report_error(outname, ERR_ILLEGAL_IMPORTS);
 	}
 
 	errcount = 0;
@@ -490,7 +490,7 @@ void output_exe_file(PCHAR outname)
 
 	if (impsreq)
 	{
-		report_error(ERR_ILLEGAL_IMPORTS);
+		report_error(outname,ERR_ILLEGAL_IMPORTS);
 	}
 
 	errcount = 0;

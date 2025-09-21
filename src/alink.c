@@ -1458,15 +1458,15 @@ static void load_files()
 			break;
 		case THEADR:
 		case LHEADR:
-			load_mod(afile);
+			load_mod(afile, filename[i]);
 			break;
 		case 0:
-			load_resource(afile);
+			load_resource(afile, filename[i]);
 			break;
 		case 0x4c:
 		case 0x4d:
 		case 0x4e:
-			load_coff(afile);
+			load_coff(afile, filename[i]);
 			break;
 		case 0x21:
 			load_coff_lib(afile, filename[i]);
@@ -1816,7 +1816,7 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	combine_blocks();
+	combine_blocks(outname);
 	sort_segments();
 
 	if (mapfile) generate_map();

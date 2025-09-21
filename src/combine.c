@@ -236,7 +236,7 @@ void combine_segments(long dest, long src)
 	seglist[src] = 0;
 }
 
-void combin_common(long i, long j)
+void combin_common(PCHAR fname,long i, long j)
 {
 	UINT k, n;
 	PUCHAR p, q;
@@ -264,7 +264,7 @@ void combin_common(long i, long j)
 			{
 				if (seglist[i]->data[k] != p[k])
 				{
-					report_error(ERR_OVERWRITE);
+					report_error(fname,ERR_OVERWRITE);
 				}
 			}
 			else
@@ -416,7 +416,7 @@ void combin_groups(long i, long j)
 	}
 }
 
-void combine_blocks()
+void combine_blocks(PCHAR fname)
 {
 	long i, j, k;
 	char* name;
@@ -495,7 +495,7 @@ void combine_blocks()
 						&& !(seglist[j]->winFlags & WINF_COMDAT)
 						)
 					{
-						combin_common(i, j);
+						combin_common(fname,i, j);
 					}
 				}
 				break;
