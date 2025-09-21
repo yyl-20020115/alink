@@ -150,32 +150,44 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 		case REL_SEGFRAME:
 		case REL_GRPFRAME:
 		case REL_EXTFRAME:
+		{
 			r->frame = f_thredindex[thrednum];
 			if (!r->frame)
 			{
 				report_error(fname, ERR_BAD_FIXUP);
 			}
 			break;
+		}
 		case REL_LILEFRAME:
 		case REL_TARGETFRAME:
 			break;
-		default:
+		default: 
+		{
 			report_error(fname, ERR_BAD_FIXUP);
+		}
 		}
 		switch (r->ftype)
 		{
 		case REL_SEGFRAME:
+		{
 			r->frame += segmin - 1;
 			break;
-		case REL_GRPFRAME:
+		}
+		case REL_GRPFRAME: 
+		{
 			r->frame += grpmin - 1;
 			break;
+		}
 		case REL_EXTFRAME:
+		{
 			r->frame += extmin - 1;
 			break;
+		}
 		case REL_LILEFRAME:
+		{
 			r->frame = prevseg;
 			break;
+		}
 		default:
 			break;
 		}
@@ -187,32 +199,44 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 		case REL_SEGFRAME:
 		case REL_GRPFRAME:
 		case REL_EXTFRAME:
+		{
 			r->frame = get_index(buf, &j);
 			if (!r->frame)
 			{
 				report_error(fname, ERR_BAD_FIXUP);
 			}
 			break;
+		}
 		case REL_LILEFRAME:
 		case REL_TARGETFRAME:
 			break;
 		default:
+		{
 			report_error(fname, ERR_BAD_FIXUP);
+		}
 		}
 		switch (r->ftype)
 		{
 		case REL_SEGFRAME:
+		{
 			r->frame += segmin - 1;
 			break;
+		}
 		case REL_GRPFRAME:
+		{
 			r->frame += grpmin - 1;
 			break;
+		}
 		case REL_EXTFRAME:
+		{
 			r->frame += extmin - 1;
 			break;
+		}
 		case REL_LILEFRAME:
+		{
 			r->frame = prevseg;
 			break;
+		}
 		default:
 			break;
 		}
@@ -237,15 +261,19 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 		case REL_SEGONLY:
 		case REL_GRPONLY:
 		case REL_EXTONLY:
+		{
 			if (!r->target)
 			{
 				report_error(fname, ERR_BAD_FIXUP);
 			}
 			break;
+		}
 		case REL_EXPFRAME:
 			break;
 		default:
+		{
 			report_error(fname, ERR_BAD_FIXUP);
+		}
 		}
 		switch (r->ttype)
 		{
@@ -282,11 +310,13 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 		case REL_SEGONLY:
 		case REL_GRPONLY:
 		case REL_EXTONLY:
+		{
 			if (!r->target)
 			{
 				report_error(fname, ERR_BAD_FIXUP);
 			}
 			break;
+		}
 		case REL_EXPFRAME:
 			break;
 		default:
@@ -322,6 +352,7 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 	case REL_GRPDISP:
 	case REL_EXTDISP:
 	case REL_EXPFRAME:
+	{
 		r->disp = buf[j] + buf[j + 1] * 256;
 		j += 2;
 		if (rectype == FIXUPP32)
@@ -330,6 +361,7 @@ void load_fixup(PCHAR fname,PRELOC r, PUCHAR buf, long* p)
 			j += 2;
 		}
 		break;
+	}
 	default:
 		break;
 	}
@@ -393,6 +425,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 		{
 		case THEADR:
 		case LHEADR:
+		{
 			if (modpos)
 			{
 				report_error(fname, ERR_EXTRA_HEADER);
@@ -420,7 +453,9 @@ long load_mod(PCHAR fname, FILE* objfile)
 			commin = comcount;
 			nummods++;
 			break;
+		}
 		case COMENT:
+		{
 			li_le = 0;
 			if (lidata)
 			{
@@ -434,6 +469,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 				{
 				case COMENT_LIB_SPEC:
 				case COMENT_DEFLIB:
+				{
 					filename = check_realloc(filename, (filecount + 1) * sizeof(PCHAR));
 					filename[filecount] = (PCHAR)check_malloc(reclength - 1 + 4);
 					/* get filename */
@@ -455,7 +491,9 @@ long load_mod(PCHAR fname, FILE* objfile)
 					/* add default library to file list */
 					filecount++;
 					break;
+				}
 				case COMENT_OMFEXT:
+				{
 					if (reclength < 4)
 					{
 						report_error(fname, ERR_INVALID_COMENT);
@@ -463,6 +501,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 					switch (buf[2])
 					{
 					case EXT_IMPDEF:
+					{
 						j = 4;
 						if (reclength < (j + 4))
 						{
@@ -517,7 +556,10 @@ long load_mod(PCHAR fname, FILE* objfile)
 						}
 						impcount++;
 						break;
+
+					}
 					case EXT_EXPDEF:
+					{
 						expdefs = check_realloc(expdefs, (expcount + 1) * sizeof(EXPREC));
 						j = 4;
 						expdefs[expcount].flags = buf[3];
@@ -562,10 +604,15 @@ long load_mod(PCHAR fname, FILE* objfile)
 						}
 						expcount++;
 						break;
+					}
 					default:
+					{
 						report_error(fname, ERR_INVALID_COMENT);
 					}
+					}
 					break;
+
+				}
 				case COMENT_DOSSEG:
 					break;
 				case COMENT_TRANSLATOR:
@@ -607,8 +654,11 @@ long load_mod(PCHAR fname, FILE* objfile)
 				}
 			}
 			break;
+
+		}
 		case LLNAMES:
 		case LNAMES:
+		{
 			j = 0;
 			while (j < reclength)
 			{
@@ -628,8 +678,11 @@ long load_mod(PCHAR fname, FILE* objfile)
 				namecount++;
 			}
 			break;
+
+		}
 		case SEGDEF:
 		case SEGDEF32:
+		{
 			seglist = (PPSEG)check_realloc(seglist, (segcount + 1) * sizeof(PSEG));
 			seglist[segcount] = check_malloc(sizeof(SEG));
 			seglist[segcount]->attr = buf[0];
@@ -731,8 +784,11 @@ long load_mod(PCHAR fname, FILE* objfile)
 			}
 			segcount++;
 			break;
+
+		}
 		case LEDATA:
 		case LEDATA32:
+		{
 			j = 0;
 			prevseg = get_index(buf, &j) - 1;
 			if (prevseg < 0)
@@ -761,7 +817,10 @@ long load_mod(PCHAR fname, FILE* objfile)
 				{
 					if (seglist[prevseg]->data[prevofs + k] != buf[j])
 					{
-						printf("%08lX: %08lX: %i, %li,%li,%li\n", prevofs + k, j, get_n_bit(seglist[prevseg]->datmask, prevofs + k), segcount, segmin, prevseg);
+						printf("%08lX: %08lX: %i, %li,%li,%li\n",
+							prevofs + k, j,
+							get_n_bit(seglist[prevseg]->datmask, prevofs + k),
+							segcount, segmin, prevseg);
 						report_error(fname, ERR_OVERWRITE);
 					}
 				}
@@ -770,8 +829,11 @@ long load_mod(PCHAR fname, FILE* objfile)
 			}
 			li_le = PREV_LE;
 			break;
+
+		}
 		case LIDATA:
 		case LIDATA32:
+		{
 			if (lidata)
 			{
 				destroy_lidata(lidata);
@@ -806,13 +868,16 @@ long load_mod(PCHAR fname, FILE* objfile)
 			lidata->count = 1;
 
 			k = prevofs;
-			emit_lidata(fname,lidata, prevseg, &k);
+			emit_lidata(fname, lidata, prevseg, &k);
 			li_le = (rectype == LIDATA) ? PREV_LI : PREV_LI32;
 			break;
+
+		}
 		case LPUBDEF:
 		case LPUBDEF32:
 		case PUBDEF:
 		case PUBDEF32:
+		{
 			j = 0;
 			grpnum = get_index(buf, &j) - 1;
 			if (grpnum >= 0)
@@ -888,9 +953,12 @@ long load_mod(PCHAR fname, FILE* objfile)
 				free(name);
 			}
 			break;
+
+		}
 		case LEXTDEF:
 		case LEXTDEF32:
 		case EXTDEF:
+		{
 			for (j = 0; j < reclength;)
 			{
 				externs = (PEXTREC)check_realloc(externs, (extcount + 1) * sizeof(EXTREC));
@@ -920,7 +988,10 @@ long load_mod(PCHAR fname, FILE* objfile)
 				extcount++;
 			}
 			break;
+
+		}
 		case GRPDEF:
+		{
 			grplist = check_realloc(grplist, (grpcount + 1) * sizeof(PGRP));
 			grplist[grpcount] = check_malloc(sizeof(GRP));
 			j = 0;
@@ -950,8 +1021,10 @@ long load_mod(PCHAR fname, FILE* objfile)
 			}
 			grpcount++;
 			break;
+		}
 		case FIXUPP:
 		case FIXUPP32:
+		{
 			j = 0;
 			while (j < reclength)
 			{
@@ -989,7 +1062,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 					default:
 						report_error(fname, ERR_BAD_FIXUP);
 					}
-					load_fixup(fname,r, buf, &j);
+					load_fixup(fname, r, buf, &j);
 
 					if (li_le == PREV_LE)
 					{
@@ -1003,7 +1076,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 					{
 						r->segnum = prevseg;
 						i = prevofs;
-						reloc_lidata(fname,lidata, &i, r);
+						reloc_lidata(fname, lidata, &i, r);
 						free(r);
 					}
 				}
@@ -1031,8 +1104,11 @@ long load_mod(PCHAR fname, FILE* objfile)
 				}
 			}
 			break;
+
+		}
 		case BAKPAT:
 		case BAKPAT32:
+		{
 			j = 0;
 			if (j < reclength) i = get_index(buf, &j);
 			i += segmin - 1;
@@ -1086,15 +1162,17 @@ long load_mod(PCHAR fname, FILE* objfile)
 				fixcount++;
 			}
 			break;
+		}
 		case LINNUM:
 		case LINNUM32:
 			//printf("LINNUM record\n");
 			break;
 		case MODEND:
 		case MODEND32:
+		{
 			done = 1;
 			if (buf[0] & 0x40)
-			{ 
+			{
 				if (gotstart)
 				{
 					report_error(fname, ERR_MULTIPLE_STARTS);
@@ -1108,7 +1186,10 @@ long load_mod(PCHAR fname, FILE* objfile)
 				}
 			}
 			break;
+
+		}
 		case COMDEF:
+		{
 			for (j = 0; j < reclength;)
 			{
 				externs = (PEXTREC)check_realloc(externs, (extcount + 1) * sizeof(EXTREC));
@@ -1207,13 +1288,17 @@ long load_mod(PCHAR fname, FILE* objfile)
 			}
 
 			break;
+		}
 		case COMDAT:
 		case COMDAT32:
+		{
 			printf("COMDAT section\n");
 			exit(1);
 
 			break;
+		}
 		case ALIAS:
+		{
 			printf("ALIAS record\n");
 			j = 0;
 			name = check_malloc(buf[j] + 1);
@@ -1284,6 +1369,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 			}
 			free(name);
 			break;
+		}
 		default:
 			report_error(fname,ERR_UNKNOWN_RECTYPE);
 		}

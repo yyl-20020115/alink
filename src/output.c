@@ -21,9 +21,9 @@ static UINT defaultStubSize = sizeof(default_stub);
 
 void get_fixup_target(PCHAR fname, PRELOC r, long* bseg, UINT* tofs, int isFlat)
 {
-	long baseseg;
-	long targseg;
-	UINT targofs;
+	long baseseg = -1L;
+	long targseg = -1L;
+	UINT targofs = 0;
 	
 	if (r->segnum < 0) return;
 
@@ -144,8 +144,8 @@ void get_fixup_target(PCHAR fname, PRELOC r, long* bseg, UINT* tofs, int isFlat)
 	{
 		printf("undefined seg\n");
 		//NOTICE:
-		return;
-		//exit(1);
+		//return;
+		exit(1);
 	}
 	if ((!errcount) && (!seglist[targseg]))
 	{
