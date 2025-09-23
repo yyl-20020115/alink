@@ -1388,7 +1388,7 @@ void load_lib(PCHAR libname, FILE* libfile)
 {
 	unsigned int i, j, k, n;
 	PCHAR name;
-	unsigned short modpage;
+	USHORT modpage;
 	PLIBFILE p;
 	UINT numsyms;
 	PSORTENTRY symlist;
@@ -1463,7 +1463,7 @@ void load_lib(PCHAR libname, FILE* libfile)
 	p->symbols = symlist;
 	p->num_syms = numsyms;
 	p->mods_loaded = 0;
-	p->mod_list = check_malloc(sizeof(unsigned short) * numsyms);
+	p->mod_list = check_malloc(sizeof(USHORT) * numsyms);
 	libcount++;
 }
 
@@ -1508,8 +1508,8 @@ void load_lib_mod(UINT libnum, UINT modpage)
 
 void load_resource(PCHAR name, FILE* f)
 {
-	unsigned char buf[32];
-	static unsigned char buf2[32] = { 0,0,0,0,0x20,0,0,0,0xff,0xff,0,0,0xff,0xff,0,0,
+	UCHAR buf[32];
+	static UCHAR buf2[32] = { 0,0,0,0,0x20,0,0,0,0xff,0xff,0,0,0xff,0xff,0,0,
 				   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
 	UINT i, j;
 	UINT hdrsize, datsize;

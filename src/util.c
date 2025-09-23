@@ -128,11 +128,11 @@ void report_error(PCHAR fname, long errnum)
 		}
 	}
 	printf("total segment size=%08X\n", tot);
-
+	//NOTICE:
 	//exit(1);
 }
 
-unsigned short wtoupper(unsigned short a)
+USHORT wtoupper(USHORT a)
 {
 	if (a >= 0x100) return a;
 	return toupper(a);
@@ -141,7 +141,7 @@ unsigned short wtoupper(unsigned short a)
 int wstricmp(const char* s1, const char* s2)
 {
 	int i = 0;
-	unsigned short a, b;
+	USHORT a, b;
 
 	while (TRUE)
 	{
@@ -311,7 +311,7 @@ char* strupr(char* s)
 	char* tmp = s;
 
 	for (; *tmp; ++tmp) {
-		*tmp = toupper((unsigned char)*tmp);
+		*tmp = toupper((UCHAR)*tmp);
 	}
 
 	return s;

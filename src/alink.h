@@ -1,6 +1,4 @@
-#ifndef __ALINK_H__
-#define __ALINK_H__
-
+#pragma once
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -356,6 +354,8 @@
 
 #define EXP_ORD 0x80
 
+typedef unsigned char BOOL;
+typedef unsigned char BYTE;
 typedef unsigned char UCHAR;
 typedef unsigned short USHORT;
 typedef unsigned long UINT;
@@ -381,7 +381,7 @@ typedef struct __seg {
 	UINT absolute_offset;
 	UINT base;
 	UINT win_flags;
-	unsigned short attributes;
+	USHORT attributes;
 	PUCHAR data;
 	PUCHAR data_mask;
 } SEG, * PSEG, ** PPSEG;
@@ -508,10 +508,10 @@ void combine_groups(PCHAR fname, long i, long j);
 void combine_common(PCHAR fname, long i, long j);
 void combine_segments(PCHAR fname, long i, long j);
 void combine_blocks(PCHAR fname);
-void output_win32_file(PCHAR outname);
-void output_exe_file(PCHAR outname);
-void output_com_file(PCHAR outname);
-void get_fixup_target(PCHAR fname, PRELOC r, long* tseg, UINT* tofs, int isFlat);
+BOOL output_win32_file(PCHAR outname);
+BOOL output_exe_file(PCHAR outname);
+BOOL output_com_file(PCHAR outname);
+BOOL get_fixup_target(PCHAR fname, PRELOC r, long* tseg, UINT* tofs, int isFlat);
 void load_lib_mod(UINT libnum, UINT modpage);
 void load_lib(PCHAR libname, FILE* libfile);
 void load_coff_lib(PCHAR libname, FILE* libfile);
@@ -532,7 +532,7 @@ void set_n_bit(PUCHAR mask, long i);
 char get_n_bit(PUCHAR mask, long i);
 int wstricmp(const char* s1, const char* s2);
 int wstrlen(const char* s);
-unsigned short wtoupper(unsigned short a);
+USHORT wtoupper(USHORT a);
 int get_bit_count(UINT a);
 void* check_malloc(size_t x);
 void* check_realloc(void* p, size_t x);
@@ -570,9 +570,8 @@ extern unsigned int sub_system;
 
 extern long error_count;
 
-extern unsigned char buffer[0x10000];
+extern UCHAR buffer[0x10000];
 extern PDATABLOCK lidata;
-
 extern PPCHAR name_list;
 extern PPSEG segment_list;
 extern PPSEG out_list;
@@ -606,5 +605,3 @@ rescount;
 
 extern int build_dll;
 extern PUCHAR stub_name;
-
-#endif

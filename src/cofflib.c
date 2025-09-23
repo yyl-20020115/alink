@@ -273,7 +273,7 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 
 
 	p->mods_loaded = 0;
-	p->mod_list = check_malloc(sizeof(unsigned short) * numsyms);
+	p->mod_list = check_malloc(sizeof(USHORT) * numsyms);
 	p->lib_type = 'C';
 	p->block_size = 1;
 	p->flags = LIBF_CASESENSITIVE;

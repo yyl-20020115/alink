@@ -2,8 +2,8 @@
 
 void load_coff(PCHAR fname, FILE* objfile)
 {
-	unsigned char headbuf[20];
-	unsigned char buf[100];
+	UCHAR headbuf[20];
+	UCHAR buf[100];
 	PUCHAR bigbuf;
 	PUCHAR stringList;
 	UINT thiscpu;

@@ -4,14 +4,14 @@ char case_sensitive = 1;
 char pad_segments = 0;
 char map_file = 0;
 PCHAR map_name = 0;
-unsigned short max_alloc = ~0;
+USHORT max_alloc = ~0;
 int output_type = OUTPUT_EXE;
 PCHAR out_name = 0;
 
 FILE* a_file = 0;
 UINT file_position = 0;
 long record_length = 0;
-unsigned char record_type = 0;
+UCHAR record_type = 0;
 char li_le = 0;
 UINT previous_offset = 0;
 long previous_segment = 0;
@@ -24,15 +24,15 @@ UINT stack_size = 4096;
 UINT stack_commit_size = 4096;
 UINT heap_size = 4096;
 UINT heap_commit_size = 4096;
-unsigned char os_major, os_minor;
-unsigned char sub_system_major, sub_system_minor;
+UCHAR os_major, os_minor;
+UCHAR sub_system_major, sub_system_minor;
 unsigned int sub_system;
 int build_dll = FALSE;
 PUCHAR stub_name = NULL;
 
 long error_count = 0;
 
-unsigned char buffer[0x10000];
+UCHAR buffer[0x10000];
 PDATABLOCK lidata;
 
 PPCHAR name_list = NULL;
@@ -69,14 +69,14 @@ UINT lib_path_count = 0;
 PCHAR* lib_path = NULL;
 char* entry_point_function_name = NULL;
 
-static void process_command_line(int argc, char** argv)
+static BOOL process_command_line(int argc, char** argv)
 {
 	long i, j;
 	int helpRequested = FALSE;
 	UINT setbase, setfalign, setoalign;
 	UINT setstack, setstackcommit, setheap, setheapcommit;
 	int setsubsysmajor, setsubsysminor, setosmajor, setosminor;
-	unsigned char setsubsys;
+	UCHAR setsubsys;
 	int gotbase = FALSE, gotfalign = FALSE, gotoalign = FALSE, gotsubsys = FALSE;
 	int gotstack = FALSE, gotstackcommit = FALSE, gotheap = FALSE, gotheapcommit = FALSE;
 	int gotsubsysver = FALSE, gotosver = FALSE;
@@ -94,7 +94,9 @@ static void process_command_line(int argc, char** argv)
 			if (!argFile)
 			{
 				printf("Unable to open response file \"%s\"\n", argv[i] + 1);
-				exit(1);
+				return FALSE;
+				//NOTICE:
+				//exit(1);
 			}
 			newargs = (char**)check_malloc(argc * sizeof(char*));
 			for (j = 0; j < argc; j++)
@@ -136,7 +138,9 @@ static void process_command_line(int argc, char** argv)
 							if (c == EOF)
 							{
 								printf("Missing character to escape in quoted string, unexpected end of file found\n");
-								exit(1);
+								return FALSE;
+								//NOTICE:
+								//exit(1);
 							}
 						}
 
@@ -148,7 +152,9 @@ static void process_command_line(int argc, char** argv)
 					if (c == EOF)
 					{
 						printf("Unexpected end of file encountered in quoted string\n");
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 
 					/* continue main loop */
@@ -174,7 +180,9 @@ static void process_command_line(int argc, char** argv)
 			if (strlen(argv[i]) < 2)
 			{
 				printf("Invalid argument \"%s\"\n", argv[i]);
-				exit(1);
+				return FALSE;
+				//NOTICE:
+				//exit(1);
 			}
 			switch (argv[i][1])
 			{
@@ -198,7 +206,9 @@ static void process_command_line(int argc, char** argv)
 					}
 				}
 				printf("Invalid switch %s\n", argv[i]);
-				exit(1);
+				return FALSE;
+				//NOTICE:
+				//exit(1);
 				break;
 			case 'p':
 				switch (strlen(argv[i]))
@@ -219,7 +229,9 @@ static void process_command_line(int argc, char** argv)
 					}
 				default:
 					printf("Invalid switch %s\n", argv[i]);
-					exit(1);
+					return FALSE;
+					//NOTICE:
+					//exit(1);
 				}
 				break;
 			case 'm':
@@ -241,7 +253,9 @@ static void process_command_line(int argc, char** argv)
 					}
 				default:
 					printf("Invalid switch %s\n", argv[i]);
-					exit(1);
+					return FALSE;
+					//NOTICE:
+					//exit(1);
 				}
 				break;
 			case 'o':
@@ -259,13 +273,17 @@ static void process_command_line(int argc, char** argv)
 						else
 						{
 							printf("Can't specify two output names\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				default:
@@ -316,20 +334,26 @@ static void process_command_line(int argc, char** argv)
 							if (p[0]) /* if not at end of arg */
 							{
 								printf("Bad object alignment\n");
-								exit(1);
+								return FALSE;
+								//NOTICE:
+								//exit(1);
 							}
 							if ((setoalign < 0x200) || (setoalign > (0x100 * 1048576))
 								|| (get_bit_count(setoalign) > 1))
 							{
 								printf("Bad object alignment\n");
-								exit(1);
+								return FALSE;
+								//NOTICE:
+								//exit(1);
 							}
 							gotoalign = TRUE;
 						}
 						else
 						{
 							printf("Invalid switch %s\n", argv[i]);
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 					}
 					else if (!strcasecmp(argv[i] + 1, "osver"))
@@ -340,27 +364,35 @@ static void process_command_line(int argc, char** argv)
 							if (sscanf(argv[i], "%d.%d%n", &setosmajor, &setosminor, &j) != 2)
 							{
 								printf("Invalid version number %s\n", argv[i]);
-								exit(1);
+								return FALSE;
+								//NOTICE:
+								//exit(1);
 							}
 							if ((j != strlen(argv[i])) || (setosmajor < 0) || (setosminor < 0)
 								|| (setosmajor > 0x10000) || (setosminor > 0x10000))
 							{
 								printf("Invalid version number %s\n", argv[i]);
-								exit(1);
+								return FALSE;
+								//NOTICE:
+								//exit(1);
 							}
 							gotosver = TRUE;
 						}
 						else
 						{
 							printf("Invalid switch %s\n", argv[i]);
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						break;
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
@@ -390,12 +422,16 @@ static void process_command_line(int argc, char** argv)
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
 				printf("Invalid switch %s\n", argv[i]);
-				exit(1);
+				return FALSE;
+				//NOTICE:
+				//exit(1);
 				break;
 			case 'h':
 			case 'H':
@@ -413,14 +449,18 @@ static void process_command_line(int argc, char** argv)
 						if (p[0]) /* if not at end of arg */
 						{
 							printf("Bad heap size\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						gotheap = TRUE;
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
@@ -433,14 +473,18 @@ static void process_command_line(int argc, char** argv)
 						if (p[0]) /* if not at end of arg */
 						{
 							printf("Bad heap commit size\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						gotheapcommit = TRUE;
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
@@ -455,26 +499,34 @@ static void process_command_line(int argc, char** argv)
 						if (p[0]) /* if not at end of arg */
 						{
 							printf("Bad image base\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						if (setbase & 0xffff)
 						{
 							printf("Bad image base\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						gotbase = TRUE;
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
 				else
 				{
 					printf("Invalid switch %s\n", argv[i]);
-					exit(1);
+					return FALSE;
+					//NOTICE:
+					//exit(1);
 				}
 				break;
 			case 's':
@@ -510,13 +562,17 @@ static void process_command_line(int argc, char** argv)
 						else
 						{
 							printf("Invalid subsystem id %s\n", argv[i]);
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
@@ -528,20 +584,26 @@ static void process_command_line(int argc, char** argv)
 						if (sscanf(argv[i], "%d.%d%n", &setsubsysmajor, &setsubsysminor, &j) != 2)
 						{
 							printf("Invalid version number %s\n", argv[i]);
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						if ((j != strlen(argv[i])) || (setsubsysmajor < 0) || (setsubsysminor < 0)
 							|| (setsubsysmajor > 0x10000) || (setsubsysminor > 0x10000))
 						{
 							printf("Invalid version number %s\n", argv[i]);
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						gotsubsysver = TRUE;
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
@@ -554,14 +616,18 @@ static void process_command_line(int argc, char** argv)
 						if (p[0]) /* if not at end of arg */
 						{
 							printf("Bad stack size\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						gotstack = TRUE;
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
@@ -574,14 +640,18 @@ static void process_command_line(int argc, char** argv)
 						if (p[0]) /* if not at end of arg */
 						{
 							printf("Bad stack commit size\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						gotstackcommit = TRUE;
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
@@ -595,15 +665,19 @@ static void process_command_line(int argc, char** argv)
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 					break;
 				}
 				else
 				{
 					printf("Invalid switch %s\n", argv[i]);
-					exit(1);
-				}
+					return FALSE;
+					//NOTICE:
+					//exit(1);
+					}
 				break;
 			case 'f':
 				if (!strcasecmp(argv[i] + 1, "filealign"))
@@ -615,26 +689,34 @@ static void process_command_line(int argc, char** argv)
 						if (p[0]) /* if not at end of arg */
 						{
 							printf("Bad file alignment\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						if ((setfalign < 512) || (setfalign > 0x10000)
 							|| (get_bit_count(setfalign) > 1))
 						{
 							printf("Bad file alignment\n");
-							exit(1);
+							return FALSE;
+							//NOTICE:
+							//exit(1);
 						}
 						gotfalign = TRUE;
 					}
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 				}
 				else
 				{
 					printf("Invalid switch %s\n", argv[i]);
-					exit(1);
+					return FALSE;
+					//NOTICE:
+					//exit(1);
 				}
 				break;
 			case 'd':
@@ -645,7 +727,9 @@ static void process_command_line(int argc, char** argv)
 				else
 				{
 					printf("Invalid switch %s\n", argv[i]);
-					exit(1);
+					return FALSE;
+					//NOTICE:
+					//exit(1);
 				}
 				break;
 			case 'e':
@@ -659,19 +743,25 @@ static void process_command_line(int argc, char** argv)
 					else
 					{
 						printf("Invalid switch %s\n", argv[i]);
-						exit(1);
+						return FALSE;
+						//NOTICE:
+						//exit(1);
 					}
 				}
 				else
 				{
 					printf("Invalid switch %s\n", argv[i]);
-					exit(1);
+					return FALSE;
+					//NOTICE:
+					//exit(1);
 				}
 				break;
 
 			default:
 				printf("Invalid switch %s\n", argv[i]);
-				exit(1);
+				return FALSE;
+				//NOTICE:
+				//exit(1);
 			}
 		}
 		else
@@ -753,7 +843,8 @@ static void process_command_line(int argc, char** argv)
 		printf("    -stackcommitsize xxx Set stack commit size to xxx\n");
 		printf("    -heapsize xxx     Set heap size to xxx\n");
 		printf("    -heapcommitsize xxx Set heap commit size to xxx\n");
-		exit(0);
+		return TRUE;
+		//exit(0);
 	}
 	if ((output_type != OUTPUT_PE) &&
 		(gotoalign || gotfalign || gotbase || gotsubsys || gotstack ||
@@ -761,7 +852,9 @@ static void process_command_line(int argc, char** argv)
 			gotsubsysver || gotosver))
 	{
 		printf("Option not supported for non-PE output formats\n");
-		exit(1);
+		return FALSE;
+		//NOTICE:
+		//exit(1);
 	}
 	if (gotstack)
 	{
@@ -815,6 +908,7 @@ static void process_command_line(int argc, char** argv)
 		os_major = setosmajor;
 		os_minor = setosminor;
 	}
+	return TRUE;
 }
 
 static void match_externs()
@@ -1589,7 +1683,7 @@ static void generate_map()
 
 			fprintf(a_file, "%s at %s:%08lX\n",
 				public_entries[i].id,
-				(q->segment >= 0) ? name_list[segment_list[q->segment]->name_index] 
+				(q->segment >= 0) ? name_list[segment_list[q->segment]->name_index]
 				: "Absolute",
 				q->offset);
 		}
@@ -1620,7 +1714,6 @@ int main(int argc, char* argv[])
 	long i, j;
 	int isend;
 	char* libList;
-	///PPUBLIC q;
 
 	printf("ALINK v1.6 (C) Copyright 1998-9 Anthony A.J. Williams.\n");
 	printf("All Rights Reserved\n\n");
@@ -1656,12 +1749,15 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	process_command_line(argc, argv);
+	if (!process_command_line(argc, argv)) {
+		return 1;
+	}
 
 	if (!filecount)
 	{
 		printf("No files specified\n");
-		exit(1);
+		return 1;
+		//exit(1);
 	}
 
 	if (!out_name)
@@ -1739,13 +1835,17 @@ int main(int argc, char* argv[])
 	if (!nummods)
 	{
 		printf("No required modules specified\n");
-		exit(1);
+		return 1;
+		//NOTICE:
+		//exit(1);
 	}
 
 	if (rescount && (output_type != OUTPUT_PE))
 	{
 		printf("Cannot link resources into a non-PE application\n");
-		exit(1);
+		return 1;
+		//NOTICE:
+		//exit(1);
 	}
 
 	if (entry_point_function_name)
@@ -1817,28 +1917,34 @@ int main(int argc, char* argv[])
 
 	if (error_count != 0)
 	{
-		exit(1);
+		return 1;
+		//NOTICE:
+		//exit(1);
 	}
 
 	combine_blocks(out_name);
 	sort_segments();
 
-	if (map_file) generate_map();
+	if (map_file) 
+	{
+		generate_map();
+	}
+	BOOL ret = FALSE;
 	switch (output_type)
 	{
 	case OUTPUT_COM:
-		output_com_file(out_name);
+		ret = output_com_file(out_name);
 		break;
 	case OUTPUT_EXE:
-		output_exe_file(out_name);
+		ret = output_exe_file(out_name);
 		break;
 	case OUTPUT_PE:
-		output_win32_file(out_name);
+		ret = output_win32_file(out_name);
 		break;
 	default:
 		printf("Invalid output type\n");
-		exit(1);
+		ret = FALSE;
 		break;
 	}
-	return 0;
+	return !ret;
 }

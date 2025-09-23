@@ -1,6 +1,7 @@
 #include "alink.h"
 
-static unsigned char default_stub[] = {
+static UCHAR default_stub[] = 
+{
 	0x4D,0x5A,0x6C,0x00,0x01,0x00,0x00,0x00,
 	0x04,0x00,0x11,0x00,0xFF,0xFF,0x03,0x00,
 	0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -17,15 +18,15 @@ static unsigned char default_stub[] = {
 	0x32,0x0D,0x0A,0x24
 };
 
-static UINT defaultStubSize = sizeof(default_stub);
+static UINT default_stub_size = sizeof(default_stub);
 
-void get_fixup_target(PCHAR fname, PRELOC relocation, long* _base_segment, UINT* _target_offset, int is_flat)
+BOOL get_fixup_target(PCHAR fname, PRELOC relocation, long* _base_segment, UINT* _target_offset, int is_flat)
 {
 	long base_segment = -1L;
 	long target_segment = -1L;
 	UINT target_offset = 0;
 
-	if (relocation->segment < 0) return;
+	if (relocation->segment < 0) return FALSE;
 
 	relocation->output_pos 
 		= segment_list[relocation->segment]->base 
@@ -69,7 +70,9 @@ void get_fixup_target(PCHAR fname, PRELOC relocation, long* _base_segment, UINT*
 	if (base_segment < 0)
 	{
 		printf("Undefined base seg\n");
-		exit(1);
+		//NOTICE:
+		return FALSE;
+		//exit(1);
 	}   /* this is a fix for TASM FLAT model, where FLAT group has no segments */
 
 	switch (relocation->ttype)
@@ -142,6 +145,7 @@ void get_fixup_target(PCHAR fname, PRELOC relocation, long* _base_segment, UINT*
 	default:
 		printf("Reloc:Unsupported TARGET type %i\n", relocation->ttype);
 		error_count++;
+		break;
 	}
 	if (target_segment < 0)
 	{
@@ -149,7 +153,8 @@ void get_fixup_target(PCHAR fname, PRELOC relocation, long* _base_segment, UINT*
 		target_segment = segcount_combined - 1;
 		//NOTICE:
 		error_count++;
-		//exit(1);
+		return FALSE;
+		//exit(`/1);
 	}
 	if ((!error_count) && (!segment_list[target_segment]))
 	{
@@ -212,11 +217,13 @@ void get_fixup_target(PCHAR fname, PRELOC relocation, long* _base_segment, UINT*
 		//printf("relocation error occurred\n");
 		*_base_segment = 0;
 		*_target_offset = 0;
+		return FALSE;
 	}
+	return TRUE;
 }
 
 
-void output_com_file(PCHAR outname)
+BOOL output_com_file(PCHAR outname)
 {
 	long i, j;
 	UINT started;
@@ -239,7 +246,9 @@ void output_com_file(PCHAR outname)
 		if (error_count)
 		{
 			printf("Invalid start address record\n");
-			exit(1);
+			return FALSE;
+			//NOTICE:
+			//exit(1);
 		}
 
 		if ((start_address.offset + segment_list[start_address.segment]->base) != 0x100)
@@ -414,13 +423,17 @@ void output_com_file(PCHAR outname)
 
 	if (error_count != 0)
 	{
-		exit(1);
+		return FALSE;
+		//NOTICE:
+		//exit(1);
 	}
 	outfile = fopen(outname, "wb");
 	if (!outfile)
 	{
 		printf("Error writing to file %s\n", outname);
-		exit(1);
+		return FALSE;
+		//NOTICE:
+		//exit(1);
 	}
 
 	started = lastout = 0;
@@ -433,7 +446,9 @@ void output_com_file(PCHAR outname)
 			{
 				printf("Segment overlap\n");
 				fclose(outfile);
-				exit(1);
+				return FALSE;
+				//NOTICE:
+				//exit(1);
 			}
 			if (pad_segments)
 			{
@@ -480,9 +495,10 @@ void output_com_file(PCHAR outname)
 	}
 
 	fclose(outfile);
+	return TRUE;
 }
 
-void output_exe_file(PCHAR out_name)
+BOOL output_exe_file(PCHAR out_name)
 {
 	long i, j;
 	UINT started, lastout;
@@ -493,7 +509,7 @@ void output_exe_file(PCHAR out_name)
 	long relocation_count;
 	int got_stack;
 	UINT totlength;
-	unsigned short temp_segment;
+	USHORT temp_segment;
 	unsigned long temp_offset;
 
 	if (impsreq)
@@ -523,7 +539,8 @@ void output_exe_file(PCHAR out_name)
 		if (error_count)
 		{
 			printf("Invalid start address record\n");
-			exit(1);
+			return FALSE;
+			//exit(1);
 		}
 
 		i = segment_list[start_address.segment]->base;
@@ -560,7 +577,8 @@ void output_exe_file(PCHAR out_name)
 				if (got_stack)
 				{
 					printf("Internal error - stack segments not combined\n");
-					exit(1);
+					return FALSE;
+					//exit(1);
 				}
 				got_stack = 1;
 				if ((out_list[i]->length > 0x10000) || (out_list[i]->length == 0))
@@ -591,7 +609,8 @@ void output_exe_file(PCHAR out_name)
 
 	for (i = 0; i < fixcount; i++)
 	{
-		get_fixup_target(out_name, relocations[i], &target_segment, &target_offset, FALSE);
+		BOOL found = get_fixup_target(out_name, relocations[i], &target_segment, &target_offset, FALSE);
+		if (!found) continue;
 		switch (relocations[i]->rtype)
 		{
 		case FIX_BASE:
@@ -763,13 +782,15 @@ void output_exe_file(PCHAR out_name)
 		default:
 			printf("Reloc %li:Relocation type %i not supported\n", i, relocations[i]->rtype);
 			error_count++;
+			break;
 		}
 	}
 
 	if (relocation_count > 0x10000)
 	{
 		printf("Too many relocations\n");
-		exit(1);
+		return FALSE;
+		//exit(1);
 	}
 
 	header_buffer[0x06] = (UCHAR)(relocation_count & 0xff);
@@ -793,21 +814,26 @@ void output_exe_file(PCHAR out_name)
 
 	if (error_count != 0)
 	{
-		exit(1);
+		return FALSE;
+		//exit(1);
 	}
 
 	outfile = fopen(out_name, "wb");
 	if (!outfile)
 	{
 		printf("Error writing to file %s\n", out_name);
-		exit(1);
+		return FALSE;
+		//NOTICE:
+		//exit(1);
 	}
 
 	i = (header_buffer[0x08] + (((UINT)header_buffer[0x09]) << 8)) * 16;
 	if (fwrite(header_buffer, 1, i, outfile) != i)
 	{
 		printf("Error writing to file %s\n", out_name);
-		exit(1);
+		return FALSE;
+		//NOTICE:
+		//exit(1);
 	}
 
 	started = 0;
@@ -821,7 +847,9 @@ void output_exe_file(PCHAR out_name)
 			{
 				printf("Segment overlap\n");
 				fclose(outfile);
-				exit(1);
+				return FALSE;
+				//NOTICE:
+				//exit(1);
 			}
 			if (pad_segments)
 			{
@@ -876,10 +904,13 @@ void output_exe_file(PCHAR out_name)
 		if (fwrite(header_buffer, 1, 12, outfile) != 12)
 		{
 			printf("Error writing to file\n");
-			exit(1);
+			return FALSE;
+			//NOTICE:
+			//exit(1);
 		}
 	}
 	fclose(outfile);
+	return TRUE;
 }
 
 static long create_output_section(char* name, UINT winFlags)
@@ -1162,7 +1193,7 @@ static void build_pe_relocs(long relocSectNum, PUCHAR object_table)
 	long targseg;
 	UINT targofs;
 	unsigned long templ;
-	unsigned short temps;
+	USHORT temps;
 
 	/* do fixups */
 	for (i = 0; i < fixcount; i++)
@@ -1194,7 +1225,7 @@ static void build_pe_relocs(long relocSectNum, PUCHAR object_table)
 					targofs &= 0xffff;
 					temps = segment_list[relocations[i]->segment]->data[j];
 					temps += segment_list[relocations[i]->segment]->data[j + 1] << 8;
-					temps += (unsigned short)targofs;
+					temps += (USHORT)targofs;
 					segment_list[relocations[i]->segment]->data[j] = temps & 0xff;
 					segment_list[relocations[i]->segment]->data[j + 1] = (temps >> 8) & 0xff;
 					j += 2;
@@ -1214,7 +1245,7 @@ static void build_pe_relocs(long relocSectNum, PUCHAR object_table)
 				}
 				temps = segment_list[relocations[i]->segment]->data[j];
 				temps += segment_list[relocations[i]->segment]->data[j + 1] << 8;
-				temps += (unsigned short)segment_list[targseg]->absolute_frame;
+				temps += (USHORT)segment_list[targseg]->absolute_frame;
 				segment_list[relocations[i]->segment]->data[j] = temps & 0xff;
 				segment_list[relocations[i]->segment]->data[j + 1] = (temps >> 8) & 0xff;
 			}
@@ -1251,7 +1282,7 @@ static void build_pe_relocs(long relocSectNum, PUCHAR object_table)
 			targofs &= 0xffff;
 			temps = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
 			temps += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
-			temps += (unsigned short)targofs;
+			temps += (USHORT)targofs;
 			segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temps & 0xff;
 			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temps >> 8) & 0xff;
 			break;
@@ -2274,7 +2305,7 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 static void get_stub(PUCHAR* pstubData, UINT* pstubSize)
 {
 	FILE* f;
-	unsigned char headbuf[0x1c];
+	UCHAR headbuf[0x1c];
 	PUCHAR buf;
 	UINT imageSize;
 	UINT headerSize;
@@ -2359,11 +2390,11 @@ static void get_stub(PUCHAR* pstubData, UINT* pstubSize)
 	else
 	{
 		(*pstubData) = default_stub;
-		(*pstubSize) = defaultStubSize;
+		(*pstubSize) = default_stub_size;
 	}
 }
 
-void output_win32_file(PCHAR outname)
+BOOL output_win32_file(PCHAR outname)
 {
 	long i, j, k;
 	UINT started;
@@ -2597,7 +2628,9 @@ void output_win32_file(PCHAR outname)
 
 	if (error_count)
 	{
-		exit(1);
+		//NOTICE:
+		return FALSE;
+		//exit(1);
 	}
 
 	/* get start address */
@@ -2607,7 +2640,8 @@ void output_win32_file(PCHAR outname)
 		if (error_count)
 		{
 			printf("Invalid start address record\n");
-			exit(1);
+			//exit(1);
+			return FALSE;
 		}
 		i = start_address.offset;
 		if (start_address.segment >= 0)
@@ -2730,14 +2764,18 @@ void output_win32_file(PCHAR outname)
 
 	if (error_count != 0)
 	{
-		exit(1);
+		return FALSE;
+		//NOTICE:
+		//exit(1);
 	}
 
 	outfile = fopen(outname, "wb");
 	if (!outfile)
 	{
 		printf("Error writing to file %s\n", outname);
-		exit(1);
+		return FALSE;
+		//NOTICE:
+		//exit(1);
 	}
 
 	for (i = 0; i < headerSize; i++)
@@ -2761,7 +2799,9 @@ void output_win32_file(PCHAR outname)
 				printf("Segment overlap\n");
 				printf("Next addr=%08X,base=%08X\n", started, out_list[i]->base);
 				fclose(outfile);
-				exit(1);
+				return FALSE;
+				//NOTICE:
+				//exit(1);
 			}
 			if (pad_segments)
 			{
@@ -2798,5 +2838,6 @@ void output_win32_file(PCHAR outname)
 	}
 
 	fclose(outfile);
+	return TRUE;
 }
 
