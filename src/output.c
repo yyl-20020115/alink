@@ -19,195 +19,199 @@ static unsigned char default_stub[] = {
 
 static UINT defaultStubSize = sizeof(default_stub);
 
-void get_fixup_target(PCHAR fname, PRELOC r, long* bseg, UINT* tofs, int isFlat)
+void get_fixup_target(PCHAR fname, PRELOC relocation, long* _base_segment, UINT* _target_offset, int is_flat)
 {
-	long baseseg = -1L;
-	long targseg = -1L;
-	UINT targofs = 0;
-	
-	if (r->segnum < 0) return;
+	long base_segment = -1L;
+	long target_segment = -1L;
+	UINT target_offset = 0;
 
-	r->outputPos = seglist[r->segnum]->base + r->ofs;
-	switch (r->ftype)
+	if (relocation->segment < 0) return;
+
+	relocation->output_pos 
+		= segment_list[relocation->segment]->base 
+		+ relocation->offset;
+
+	switch (relocation->ftype)
 	{
 	case REL_SEGFRAME:
 	case REL_LILEFRAME:
-		baseseg = r->frame;
+		base_segment = relocation->frame;
 		break;
 	case REL_GRPFRAME:
-		baseseg = grplist[r->frame]->segnum;
+		base_segment = group_list[relocation->frame]->segnum;
 		break;
 	case REL_EXTFRAME:
-		switch (externs[r->frame].flags)
+		switch (extern_records[relocation->frame].flags)
 		{
 		case EXT_MATCHEDPUBLIC:
-			if (!externs[r->frame].pubdef)
+			if (!extern_records[relocation->frame].pubdef)
 			{
-				printf("Reloc:Unmatched extern %s\n", externs[r->frame].name);
-				errcount++;
+				printf("Reloc:Unmatched extern %s\n", extern_records[relocation->frame].name);
+				error_count++;
 				break;
 			}
 
-			baseseg = externs[r->frame].pubdef->segnum;
+			base_segment = extern_records[relocation->frame].pubdef->segment;
 			break;
 		case EXT_MATCHEDIMPORT:
-			baseseg = impdefs[externs[r->frame].impnum].segnum;
+			base_segment = import_definitions[extern_records[relocation->frame].import].segment;
 			break;
 		default:
 			printf("Reloc:Unmatched external referenced in frame\n");
-			errcount++;
+			error_count++;
 			break;
 		}
 		break;
 	default:
-		printf("Reloc:Unsupported FRAME type %i\n", r->ftype);
-		errcount++;
+		printf("Reloc:Unsupported FRAME type %i\n", relocation->ftype);
+		error_count++;
 	}
-	if (baseseg < 0)
+	if (base_segment < 0)
 	{
 		printf("Undefined base seg\n");
 		exit(1);
 	}   /* this is a fix for TASM FLAT model, where FLAT group has no segments */
 
-	switch (r->ttype)
+	switch (relocation->ttype)
 	{
 	case REL_EXTDISP:
-		switch (externs[r->target].flags)
+		switch (extern_records[relocation->target].flags)
 		{
 		case EXT_MATCHEDPUBLIC:
-			if (!externs[r->target].pubdef)
+			if (!extern_records[relocation->target].pubdef)
 			{
-				printf("Reloc:Unmatched extern %s\n", externs[r->frame].name);
-				errcount++;
+				printf("Reloc:Unmatched extern %s\n", extern_records[relocation->frame].name);
+				error_count++;
 				break;
 			}
 
-			targseg = externs[r->target].pubdef->segnum;
-			targofs = externs[r->target].pubdef->ofs;
+			target_segment = extern_records[relocation->target].pubdef->segment;
+			target_offset = extern_records[relocation->target].pubdef->offset;
 			break;
 		case EXT_MATCHEDIMPORT:
-			targseg = impdefs[externs[r->target].impnum].segnum;
-			targofs = impdefs[externs[r->target].impnum].ofs;
+			target_segment = import_definitions[extern_records[relocation->target].import].segment;
+			target_offset = import_definitions[extern_records[relocation->target].import].offset;
 			break;
 		default:
 			printf("Reloc:Unmatched external referenced in frame\n");
-			errcount++;
+			error_count++;
 			break;
 		}
-		targofs += r->disp;
+		target_offset += relocation->disp;
 		break;
 	case REL_EXTONLY:
-		switch (externs[r->target].flags)
+		switch (extern_records[relocation->target].flags)
 		{
 		case EXT_MATCHEDPUBLIC:
-			if (!externs[r->target].pubdef)
+			if (!extern_records[relocation->target].pubdef)
 			{
-				printf("Reloc:Unmatched extern %s\n", externs[r->target].name);
-				errcount++;
+				printf("Reloc:Unmatched extern %s\n", extern_records[relocation->target].name);
+				error_count++;
 				break;
 			}
 
-			targseg = externs[r->target].pubdef->segnum;
-			targofs = externs[r->target].pubdef->ofs;
+			target_segment = extern_records[relocation->target].pubdef->segment;
+			target_offset = extern_records[relocation->target].pubdef->offset;
 			break;
 		case EXT_MATCHEDIMPORT:
-			targseg = impdefs[externs[r->target].impnum].segnum;
-			targofs = impdefs[externs[r->target].impnum].ofs;
+			target_segment = import_definitions[extern_records[relocation->target].import].segment;
+			target_offset = import_definitions[extern_records[relocation->target].import].offset;
 			break;
 		default:
 			printf("Reloc:Unmatched external referenced in frame\n");
-			errcount++;
+			error_count++;
 			break;
 		}
 		break;
 	case REL_SEGONLY:
-		targseg = r->target;
-		targofs = 0;
+		target_segment = relocation->target;
+		target_offset = 0;
 		break;
 	case REL_SEGDISP:
-		targseg = r->target;
-		targofs = r->disp;
+		target_segment = relocation->target;
+		target_offset = relocation->disp;
 		break;
 	case REL_GRPONLY:
-		targseg = grplist[r->target]->segnum;
-		targofs = 0;
+		target_segment = group_list[relocation->target]->segnum;
+		target_offset = 0;
 		break;
 	case REL_GRPDISP:
-		targseg = grplist[r->target]->segnum;
-		targofs = r->disp;
+		target_segment = group_list[relocation->target]->segnum;
+		target_offset = relocation->disp;
 		break;
 	default:
-		printf("Reloc:Unsupported TARGET type %i\n", r->ttype);
-		errcount++;
+		printf("Reloc:Unsupported TARGET type %i\n", relocation->ttype);
+		error_count++;
 	}
-	if (targseg < 0)
+	if (target_segment < 0)
 	{
 		printf("undefined seg\n");
+		target_segment = segcount_combined - 1;
 		//NOTICE:
-		//return;
-		exit(1);
+		error_count++;
+		//exit(1);
 	}
-	if ((!errcount) && (!seglist[targseg]))
+	if ((!error_count) && (!segment_list[target_segment]))
 	{
 		printf("Reloc: no target segment\n");
 
-		errcount++;
+		error_count++;
 	}
-	if ((!errcount) && (!seglist[baseseg]))
+	if ((!error_count) && (!segment_list[base_segment]))
 	{
 		printf("reloc: no base segment\n");
 
-		errcount++;
+		error_count++;
 	}
 
-	if (!errcount)
+	if (!error_count)
 	{
 		/*
-				if(((seglist[targseg]->attr&SEG_ALIGN)!=SEG_ABS) &&
-				   ((seglist[baseseg]->attr&SEG_ALIGN)!=SEG_ABS))
-				{
-					if(seglist[baseseg]->base>seglist[targseg]->base)
-					{
-						printf("Reloc:Negative base address\n");
-						errcount++;
-					}
-					targofs+=seglist[targseg]->base-seglist[baseseg]->base;
-				}
+		if(((seglist[targseg]->attr&SEG_ALIGN)!=SEG_ABS) &&
+			((seglist[baseseg]->attr&SEG_ALIGN)!=SEG_ABS))
+		{
+			if(seglist[baseseg]->base>seglist[targseg]->base)
+			{
+				printf("Reloc:Negative base address\n");
+				errcount++;
+			}
+			targofs+=seglist[targseg]->base-seglist[baseseg]->base;
+		}
 		*/
-		if ((seglist[baseseg]->attr & SEG_ALIGN) == SEG_ABS)
+		if ((segment_list[base_segment]->attributes & SEG_ALIGN) == SEG_ABS)
 		{
 			printf("Warning: Reloc frame is absolute segment\n");
-			targseg = baseseg;
+			target_segment = base_segment;
 		}
-		else if ((seglist[targseg]->attr & SEG_ALIGN) == SEG_ABS)
+		else if ((segment_list[target_segment]->attributes & SEG_ALIGN) == SEG_ABS)
 		{
 			printf("Warning: Reloc target is in absolute segment\n");
-			targseg = baseseg;
+			target_segment = base_segment;
 		}
-		if (!isFlat || ((seglist[baseseg]->attr & SEG_ALIGN) == SEG_ABS))
+		if (!is_flat || ((segment_list[base_segment]->attributes & SEG_ALIGN) == SEG_ABS))
 		{
-			if (seglist[baseseg]->base > (seglist[targseg]->base + targofs))
+			if (segment_list[base_segment]->base > (segment_list[target_segment]->base + target_offset))
 			{
 				printf("Error: target address out of frame\n");
 				printf("Base=%08X,target=%08X\n",
-					seglist[baseseg]->base, seglist[targseg]->base + targofs);
-				errcount++;
+					segment_list[base_segment]->base, segment_list[target_segment]->base + target_offset);
+				error_count++;
 			}
-			targofs += seglist[targseg]->base - seglist[baseseg]->base;
-			*bseg = baseseg;
-			*tofs = targofs;
+			target_offset += segment_list[target_segment]->base - segment_list[base_segment]->base;
+			*_base_segment = base_segment;
+			*_target_offset = target_offset;
 		}
 		else
 		{
-			*bseg = -1;
-			*tofs = targofs + seglist[targseg]->base;
+			*_base_segment = -1;
+			*_target_offset = target_offset + segment_list[target_segment]->base;
 		}
 	}
 	else
 	{
-		printf("relocation error occurred\n");
-		*bseg = 0;
-		*tofs = 0;
+		//printf("relocation error occurred\n");
+		*_base_segment = 0;
+		*_target_offset = 0;
 	}
 }
 
@@ -220,25 +224,25 @@ void output_com_file(PCHAR outname)
 	long targseg;
 	UINT targofs;
 	FILE* outfile;
-	unsigned short temps;
-	unsigned long templ;
+	USHORT temps;
+	USHORT templ;
 
 	if (impsreq)
 	{
 		report_error(outname, ERR_ILLEGAL_IMPORTS);
 	}
 
-	errcount = 0;
-	if (gotstart)
+	error_count = 0;
+	if (got_start_address)
 	{
-		get_fixup_target(outname,&startaddr, &startaddr.segnum, &startaddr.ofs, FALSE);
-		if (errcount)
+		get_fixup_target(outname, &start_address, &start_address.segment, &start_address.offset, FALSE);
+		if (error_count)
 		{
 			printf("Invalid start address record\n");
 			exit(1);
 		}
 
-		if ((startaddr.ofs + seglist[startaddr.segnum]->base) != 0x100)
+		if ((start_address.offset + segment_list[start_address.segment]->base) != 0x100)
 		{
 			printf("Warning, start address not 0100h as required for COM file\n");
 		}
@@ -250,165 +254,165 @@ void output_com_file(PCHAR outname)
 
 	for (i = 0; i < fixcount; i++)
 	{
-		get_fixup_target(outname, relocs[i], &targseg, &targofs, FALSE);
-		switch (relocs[i]->rtype)
+		get_fixup_target(outname, relocations[i], &targseg, &targofs, FALSE);
+		switch (relocations[i]->rtype)
 		{
 		case FIX_BASE:
 		case FIX_PTR1616:
 		case FIX_PTR1632:
-			if ((seglist[targseg]->attr & SEG_ALIGN) != SEG_ABS)
+			if ((segment_list[targseg]->attributes & SEG_ALIGN) != SEG_ABS)
 			{
 				printf("Reloc %li:Segment selector relocations are not supported in COM files\n", i);
-				errcount++;
+				error_count++;
 			}
 			else
 			{
-				j = relocs[i]->ofs;
-				if (relocs[i]->rtype == FIX_PTR1616)
+				j = relocations[i]->offset;
+				if (relocations[i]->rtype == FIX_PTR1616)
 				{
 					if (targofs > 0xffff)
 					{
 						printf("Relocs %li:Offset out of range\n", i);
-						errcount++;
+						error_count++;
 					}
-					temps = seglist[relocs[i]->segnum]->data[j];
-					temps += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-					temps += targofs;
-					temps += seglist[targseg]->base & 0xf; /* non-para seg */
-					seglist[relocs[i]->segnum]->data[j] = temps & 0xff;
-					seglist[relocs[i]->segnum]->data[j + 1] = (temps >> 8) & 0xff;
+					temps = segment_list[relocations[i]->segment]->data[j];
+					temps += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+					temps += (USHORT)targofs;
+					temps += segment_list[targseg]->base & 0xf; /* non-para seg */
+					segment_list[relocations[i]->segment]->data[j] = temps & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 1] = (temps >> 8) & 0xff;
 					j += 2;
 				}
-				else if (relocs[i]->rtype == FIX_PTR1632)
+				else if (relocations[i]->rtype == FIX_PTR1632)
 				{
-					templ = seglist[relocs[i]->segnum]->data[j];
-					templ += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-					templ += seglist[relocs[i]->segnum]->data[j + 2] << 16;
-					templ += seglist[relocs[i]->segnum]->data[j + 3] << 24;
-					templ += targofs;
-					templ += seglist[targseg]->base & 0xf; /* non-para seg */
-					seglist[relocs[i]->segnum]->data[j] = templ & 0xff;
-					seglist[relocs[i]->segnum]->data[j + 1] = (templ >> 8) & 0xff;
-					seglist[relocs[i]->segnum]->data[j + 2] = (templ >> 16) & 0xff;
-					seglist[relocs[i]->segnum]->data[j + 3] = (templ >> 24) & 0xff;
+					templ = segment_list[relocations[i]->segment]->data[j];
+					templ += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+					templ += segment_list[relocations[i]->segment]->data[j + 2] << 16;
+					templ += segment_list[relocations[i]->segment]->data[j + 3] << 24;
+					templ += (USHORT)targofs;
+					templ += segment_list[targseg]->base & 0xf; /* non-para seg */
+					segment_list[relocations[i]->segment]->data[j] = templ & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 1] = (templ >> 8) & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 2] = (templ >> 16) & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 3] = (templ >> 24) & 0xff;
 					j += 4;
 				}
-				temps = seglist[relocs[i]->segnum]->data[j];
-				temps += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-				temps += seglist[targseg]->absframe;
-				seglist[relocs[i]->segnum]->data[j] = temps & 0xff;
-				seglist[relocs[i]->segnum]->data[j + 1] = (temps >> 8) & 0xff;
+				temps = segment_list[relocations[i]->segment]->data[j];
+				temps += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+				temps += (USHORT)segment_list[targseg]->absolute_frame;
+				segment_list[relocations[i]->segment]->data[j] = temps & 0xff;
+				segment_list[relocations[i]->segment]->data[j + 1] = (temps >> 8) & 0xff;
 			}
 			break;
 		case FIX_OFS32:
 		case FIX_OFS32_2:
-			templ = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] << 16;
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] << 24;
-			templ += targofs;
-			templ += seglist[targseg]->base & 0xf; /* non-para seg */
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = templ & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (templ >> 8) & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] = (templ >> 16) & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] = (templ >> 24) & 0xff;
+			templ = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
+			templ += (USHORT)targofs;
+			templ += segment_list[targseg]->base & 0xf; /* non-para seg */
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] = templ & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (templ >> 8) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (templ >> 16) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (templ >> 24) & 0xff;
 			break;
 		case FIX_OFS16:
 		case FIX_OFS16_2:
 			if (targofs > 0xffff)
 			{
 				printf("Relocs %li:Offset out of range\n", i);
-				errcount++;
+				error_count++;
 			}
-			temps = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-			temps += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-			temps += targofs;
-			temps += seglist[targseg]->base & 0xf; /* non-para seg */
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = temps & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (temps >> 8) & 0xff;
+			temps = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+			temps += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+			temps += (USHORT)targofs;
+			temps += segment_list[targseg]->base & 0xf; /* non-para seg */
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temps & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temps >> 8) & 0xff;
 			break;
 		case FIX_LBYTE:
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += targofs & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += seglist[targseg]->base & 0xf; /* non-para seg */
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] += targofs & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] += segment_list[targseg]->base & 0xf; /* non-para seg */
 			break;
 		case FIX_HBYTE:
-			templ = targofs + (seglist[targseg]->base & 0xf); /* non-para seg */
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += (templ >> 8) & 0xff;
+			templ = (USHORT)targofs + (USHORT)(segment_list[targseg]->base & 0xf); /* non-para seg */
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] += (templ >> 8) & 0xff;
 			break;
 		case FIX_SELF_LBYTE:
-			if ((seglist[targseg]->attr & SEG_ALIGN) == SEG_ABS)
+			if ((segment_list[targseg]->attributes & SEG_ALIGN) == SEG_ABS)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
-				j = seglist[targseg]->base + targofs;
-				j -= seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 1;
+				j = segment_list[targseg]->base + targofs;
+				j -= segment_list[relocations[i]->segment]->base + relocations[i]->offset + 1;
 				if ((j < -128) || (j > 127))
 				{
 					printf("Error: Reloc %li out of range\n", i);
 				}
 				else
 				{
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += j;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset] += (UCHAR)j;
 				}
 			}
 			break;
 		case FIX_SELF_OFS16:
 		case FIX_SELF_OFS16_2:
-			if ((seglist[targseg]->attr & SEG_ALIGN) == SEG_ABS)
+			if ((segment_list[targseg]->attributes & SEG_ALIGN) == SEG_ABS)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
-				j = seglist[targseg]->base + targofs;
-				j -= seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 2;
+				j = segment_list[targseg]->base + targofs;
+				j -= segment_list[relocations[i]->segment]->base + relocations[i]->offset + 2;
 				if ((j < -32768) || (j > 32767))
 				{
 					printf("Error: Reloc %li out of range\n", i);
 				}
 				else
 				{
-					temps = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-					temps += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-					temps += j;
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = temps & 0xff;
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (temps >> 8) & 0xff;
+					temps = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+					temps += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+					temps += (USHORT)j;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temps & 0xff;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temps >> 8) & 0xff;
 				}
 			}
 			break;
 		case FIX_SELF_OFS32:
 		case FIX_SELF_OFS32_2:
-			if ((seglist[targseg]->attr & SEG_ALIGN) == SEG_ABS)
+			if ((segment_list[targseg]->attributes & SEG_ALIGN) == SEG_ABS)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
-				j = seglist[targseg]->base + targofs;
-				j -= seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 4;
-				templ = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] << 16;
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] << 24;
-				templ += j;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = templ & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (templ >> 8) & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] = (templ >> 16) & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] = (templ >> 24) & 0xff;
+				j = segment_list[targseg]->base + targofs;
+				j -= segment_list[relocations[i]->segment]->base + relocations[i]->offset + 4;
+				templ = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+				templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+				templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+				templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
+				templ += (USHORT)j;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset] = templ & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (templ >> 8) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (templ >> 16) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (templ >> 24) & 0xff;
 			}
 			break;
 		default:
-			printf("Reloc %li:Relocation type %i not supported\n", i, relocs[i]->rtype);
-			errcount++;
+			printf("Reloc %li:Relocation type %i not supported\n", i, relocations[i]->rtype);
+			error_count++;
 		}
 	}
 
-	if (errcount != 0)
+	if (error_count != 0)
 	{
 		exit(1);
 	}
@@ -423,17 +427,17 @@ void output_com_file(PCHAR outname)
 
 	for (i = 0; i < outcount; i++)
 	{
-		if (outlist[i] && ((outlist[i]->attr & SEG_ALIGN) != SEG_ABS))
+		if (out_list[i] && ((out_list[i]->attributes & SEG_ALIGN) != SEG_ABS))
 		{
-			if (started > outlist[i]->base)
+			if (started > out_list[i]->base)
 			{
 				printf("Segment overlap\n");
 				fclose(outfile);
 				exit(1);
 			}
-			if (padsegments)
+			if (pad_segments)
 			{
-				while (started < outlist[i]->base)
+				while (started < out_list[i]->base)
 				{
 					fputc(0, outfile);
 					started++;
@@ -441,22 +445,22 @@ void output_com_file(PCHAR outname)
 			}
 			else
 			{
-				started = outlist[i]->base;
+				started = out_list[i]->base;
 			}
-			for (j = 0; j < outlist[i]->length; j++)
+			for (j = 0; j < out_list[i]->length; j++)
 			{
 				if (started >= 0x100)
 				{
-					if (get_n_bit(outlist[i]->datmask, j))
+					if (get_n_bit(out_list[i]->data_mask, j))
 					{
 						for (; lastout < started; lastout++)
 						{
 							fputc(0, outfile);
 						}
-						fputc(outlist[i]->data[j], outfile);
+						fputc(out_list[i]->data[j], outfile);
 						lastout = started + 1;
 					}
-					else if (padsegments)
+					else if (pad_segments)
 					{
 						fputc(0, outfile);
 						lastout = started + 1;
@@ -465,9 +469,9 @@ void output_com_file(PCHAR outname)
 				else
 				{
 					lastout = started + 1;
-					if (get_n_bit(outlist[i]->datmask, j))
+					if (get_n_bit(out_list[i]->data_mask, j))
 					{
-						printf("Warning - data at offset %08lX (%s:%08lX) discarded\n", started, namelist[outlist[i]->nameindex], j);
+						printf("Warning - data at offset %08lX (%s:%08lX) discarded\n", started, name_list[out_list[i]->name_index], j);
 					}
 				}
 				started++;
@@ -478,65 +482,65 @@ void output_com_file(PCHAR outname)
 	fclose(outfile);
 }
 
-void output_exe_file(PCHAR outname)
+void output_exe_file(PCHAR out_name)
 {
 	long i, j;
 	UINT started, lastout;
-	long targseg;
-	UINT targofs;
+	long target_segment;
+	UINT target_offset;
 	FILE* outfile;
-	PUCHAR headbuf;
-	long relcount;
-	int gotstack;
+	PUCHAR header_buffer;
+	long relocation_count;
+	int got_stack;
 	UINT totlength;
-	unsigned short temps;
-	unsigned long templ;
+	unsigned short temp_segment;
+	unsigned long temp_offset;
 
 	if (impsreq)
 	{
-		report_error(outname, ERR_ILLEGAL_IMPORTS);
+		report_error(out_name, ERR_ILLEGAL_IMPORTS);
 	}
 
-	errcount = 0;
-	gotstack = 0;
-	headbuf = check_malloc(0x40 + 4 * fixcount);
-	relcount = 0;
+	error_count = 0;
+	got_stack = 0;
+	header_buffer = check_malloc(0x40 + 4 * fixcount);
+	relocation_count = 0;
 
 	for (i = 0; i < 0x40; i++)
 	{
-		headbuf[i] = 0;
+		header_buffer[i] = 0;
 	}
 
-	headbuf[0x00] = 'M'; /* sig */
-	headbuf[0x01] = 'Z';
-	headbuf[0x0c] = maxalloc & 0xff;
-	headbuf[0x0d] = maxalloc >> 8;
-	headbuf[0x18] = 0x40;
+	header_buffer[0x00] = 'M'; /* sig */
+	header_buffer[0x01] = 'Z';
+	header_buffer[0x0c] = max_alloc & 0xff;
+	header_buffer[0x0d] = max_alloc >> 8;
+	header_buffer[0x18] = 0x40;
 
-	if (gotstart)
+	if (got_start_address)
 	{
-		get_fixup_target(outname, &startaddr, &startaddr.segnum, &startaddr.ofs, FALSE);
-		if (errcount)
+		get_fixup_target(out_name, &start_address, &start_address.segment, &start_address.offset, FALSE);
+		if (error_count)
 		{
 			printf("Invalid start address record\n");
 			exit(1);
 		}
 
-		i = seglist[startaddr.segnum]->base;
-		startaddr.ofs += i & 0xf;
+		i = segment_list[start_address.segment]->base;
+		start_address.offset += i & 0xf;
 		i >>= 4;
-		if ((startaddr.ofs > 65535) || (i > 65535) || ((seglist[startaddr.segnum]->attr & SEG_ALIGN) == SEG_ABS))
+		if ((start_address.offset > 0x10000) || (i > 0x10000) || ((segment_list[start_address.segment]->attributes & SEG_ALIGN) == SEG_ABS))
 		{
 			printf("Invalid start address\n");
-			errcount++;
+			error_count++;
 		}
 		else
 		{
-			headbuf[0x14] = startaddr.ofs & 0xff;
-			headbuf[0x15] = startaddr.ofs >> 8;
+			header_buffer[0x14] = (UCHAR)(start_address.offset & 0xff);
+			header_buffer[0x15] = (UCHAR)(start_address.offset >> 8);
 
-			headbuf[0x16] = i & 0xff;
-			headbuf[0x17] = i >> 8;
+			header_buffer[0x16] = (UCHAR)(i & 0xff);
+			header_buffer[0x17] = (UCHAR)(i >> 8);
 		}
 	}
 	else
@@ -548,260 +552,261 @@ void output_exe_file(PCHAR outname)
 
 	for (i = 0; i < outcount; i++)
 	{
-		if ((outlist[i]->attr & SEG_ALIGN) != SEG_ABS)
+		if ((out_list[i]->attributes & SEG_ALIGN) != SEG_ABS)
 		{
-			totlength = outlist[i]->base + outlist[i]->length;
-			if ((outlist[i]->attr & SEG_COMBINE) == SEG_STACK)
+			totlength = out_list[i]->base + out_list[i]->length;
+			if ((out_list[i]->attributes & SEG_COMBINE) == SEG_STACK)
 			{
-				if (gotstack)
+				if (got_stack)
 				{
 					printf("Internal error - stack segments not combined\n");
 					exit(1);
 				}
-				gotstack = 1;
-				if ((outlist[i]->length > 65536) || (outlist[i]->length == 0))
+				got_stack = 1;
+				if ((out_list[i]->length > 0x10000) || (out_list[i]->length == 0))
 				{
 					printf("SP value out of range\n");
-					errcount++;
+					error_count++;
 				}
-				if ((outlist[i]->base > 0xfffff) || ((outlist[i]->base & 0xf) != 0))
+				if ((out_list[i]->base > 0xfffff) || ((out_list[i]->base & 0xf) != 0))
 				{
 					printf("SS value out of range\n");
-					errcount++;
+					error_count++;
 				}
-				if (!errcount)
+				if (!error_count)
 				{
-					headbuf[0x0e] = (outlist[i]->base >> 4) & 0xff;
-					headbuf[0x0f] = outlist[i]->base >> 12;
-					headbuf[0x10] = outlist[i]->length & 0xff;
-					headbuf[0x11] = (outlist[i]->length >> 8) & 0xff;
+					header_buffer[0x0e] = (UCHAR)((out_list[i]->base >> 4) & 0xff);
+					header_buffer[0x0f] = (UCHAR)(out_list[i]->base >> 12);
+					header_buffer[0x10] = (UCHAR)(out_list[i]->length & 0xff);
+					header_buffer[0x11] = (UCHAR)((out_list[i]->length >> 8) & 0xff);
 				}
 			}
 		}
 	}
 
-	if (!gotstack)
+	if (!got_stack)
 	{
 		printf("Warning - no stack\n");
 	}
 
 	for (i = 0; i < fixcount; i++)
 	{
-		get_fixup_target(outname,relocs[i], &targseg, &targofs, FALSE);
-		switch (relocs[i]->rtype)
+		get_fixup_target(out_name, relocations[i], &target_segment, &target_offset, FALSE);
+		switch (relocations[i]->rtype)
 		{
 		case FIX_BASE:
 		case FIX_PTR1616:
 		case FIX_PTR1632:
-			j = relocs[i]->ofs;
-			if (relocs[i]->rtype == FIX_PTR1616)
+			j = relocations[i]->offset;
+			if (relocations[i]->rtype == FIX_PTR1616)
 			{
-				if (targofs > 0xffff)
+				if (target_offset > 0xffff)
 				{
 					printf("Relocs %li:Offset out of range\n", i);
-					errcount++;
+					error_count++;
 				}
-				temps = seglist[relocs[i]->segnum]->data[j];
-				temps += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-				temps += targofs;
-				temps += seglist[targseg]->base & 0xf; /* non-para seg */
-				seglist[relocs[i]->segnum]->data[j] = temps & 0xff;
-				seglist[relocs[i]->segnum]->data[j + 1] = (temps >> 8) & 0xff;
+				temp_segment = segment_list[relocations[i]->segment]->data[j];
+				temp_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+				temp_segment += (UCHAR)target_offset;
+				temp_segment += segment_list[target_segment]->base & 0xf; /* non-para seg */
+				segment_list[relocations[i]->segment]->data[j] = temp_segment & 0xff;
+				segment_list[relocations[i]->segment]->data[j + 1] = (temp_segment >> 8) & 0xff;
 				j += 2;
 			}
-			else if (relocs[i]->rtype == FIX_PTR1632)
+			else if (relocations[i]->rtype == FIX_PTR1632)
 			{
-				templ = seglist[relocs[i]->segnum]->data[j];
-				templ += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-				templ += seglist[relocs[i]->segnum]->data[j + 2] << 16;
-				templ += seglist[relocs[i]->segnum]->data[j + 3] << 24;
-				templ += targofs;
-				templ += seglist[targseg]->base & 0xf; /* non-para seg */
-				seglist[relocs[i]->segnum]->data[j] = templ & 0xff;
-				seglist[relocs[i]->segnum]->data[j + 1] = (templ >> 8) & 0xff;
-				seglist[relocs[i]->segnum]->data[j + 2] = (templ >> 16) & 0xff;
-				seglist[relocs[i]->segnum]->data[j + 3] = (templ >> 24) & 0xff;
+				temp_offset = segment_list[relocations[i]->segment]->data[j];
+				temp_offset += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+				temp_offset += segment_list[relocations[i]->segment]->data[j + 2] << 16;
+				temp_offset += segment_list[relocations[i]->segment]->data[j + 3] << 24;
+				temp_offset += target_offset;
+				temp_offset += segment_list[target_segment]->base & 0xf; /* non-para seg */
+				segment_list[relocations[i]->segment]->data[j] = temp_offset & 0xff;
+				segment_list[relocations[i]->segment]->data[j + 1] = (temp_offset >> 8) & 0xff;
+				segment_list[relocations[i]->segment]->data[j + 2] = (temp_offset >> 16) & 0xff;
+				segment_list[relocations[i]->segment]->data[j + 3] = (temp_offset >> 24) & 0xff;
 				j += 4;
 			}
-			if ((seglist[targseg]->attr & SEG_ALIGN) != SEG_ABS)
+			if ((segment_list[target_segment]->attributes & SEG_ALIGN) != SEG_ABS)
 			{
-				if (seglist[targseg]->base > 0xfffff)
+				if (segment_list[target_segment]->base > 0xfffff)
 				{
 					printf("Relocs %li:Segment base out of range\n", i);
-					errcount++;
+					error_count++;
 				}
-				temps = seglist[relocs[i]->segnum]->data[j];
-				temps += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-				temps += (seglist[targseg]->base >> 4);
-				seglist[relocs[i]->segnum]->data[j] = temps & 0xff;
-				seglist[relocs[i]->segnum]->data[j + 1] = (temps >> 8) & 0xff;
-				templ = seglist[relocs[i]->segnum]->base >> 4;
-				headbuf[0x40 + relcount * 4 + 2] = templ & 0xff;
-				headbuf[0x40 + relcount * 4 + 3] = (templ >> 8) & 0xff;
-				templ = (seglist[relocs[i]->segnum]->base & 0xf) + j;
-				headbuf[0x40 + relcount * 4] = (templ) & 0xff;
-				headbuf[0x40 + relcount * 4 + 1] = (templ >> 8) & 0xff;
-				relcount++;
+				temp_segment = segment_list[relocations[i]->segment]->data[j];
+				temp_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+				temp_segment += (UCHAR)(segment_list[target_segment]->base >> 4);
+				segment_list[relocations[i]->segment]->data[j] = temp_segment & 0xff;
+				segment_list[relocations[i]->segment]->data[j + 1] = (temp_segment >> 8) & 0xff;
+				temp_offset = segment_list[relocations[i]->segment]->base >> 4;
+				header_buffer[0x40 + relocation_count * 4 + 2] = temp_offset & 0xff;
+				header_buffer[0x40 + relocation_count * 4 + 3] = (temp_offset >> 8) & 0xff;
+				temp_offset = (segment_list[relocations[i]->segment]->base & 0xf) + j;
+				header_buffer[0x40 + relocation_count * 4] = (temp_offset) & 0xff;
+				header_buffer[0x40 + relocation_count * 4 + 1] = (temp_offset >> 8) & 0xff;
+				relocation_count++;
 			}
 			else
 			{
-				temps = seglist[relocs[i]->segnum]->data[j];
-				temps += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-				temps += seglist[targseg]->absframe;
-				seglist[relocs[i]->segnum]->data[j] = temps & 0xff;
-				seglist[relocs[i]->segnum]->data[j + 1] = (temps >> 8) & 0xff;
+				temp_segment = segment_list[relocations[i]->segment]->data[j];
+				temp_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+				temp_segment += (UCHAR)segment_list[target_segment]->absolute_frame;
+				segment_list[relocations[i]->segment]->data[j] = temp_segment & 0xff;
+				segment_list[relocations[i]->segment]->data[j + 1] = (temp_segment >> 8) & 0xff;
 			}
 			break;
 		case FIX_OFS32:
 		case FIX_OFS32_2:
-			templ = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] << 16;
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] << 24;
-			templ += targofs;
-			templ += seglist[targseg]->base & 0xf; /* non-para seg */
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = templ & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (templ >> 8) & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] = (templ >> 16) & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] = (templ >> 24) & 0xff;
+			temp_offset = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+			temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+			temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+			temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
+			temp_offset += target_offset;
+			temp_offset += segment_list[target_segment]->base & 0xf; /* non-para seg */
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temp_offset & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temp_offset >> 8) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (temp_offset >> 16) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (temp_offset >> 24) & 0xff;
 			break;
 		case FIX_OFS16:
 		case FIX_OFS16_2:
-			if (targofs > 0xffff)
+			if (target_offset > 0xffff)
 			{
 				printf("Relocs %li:Offset out of range\n", i);
-				errcount++;
+				error_count++;
 			}
-			temps = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-			temps += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-			temps += targofs;
-			temps += seglist[targseg]->base & 0xf; /* non-para seg */
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = temps & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (temps >> 8) & 0xff;
+			temp_segment = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+			temp_segment += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+			temp_segment += (UCHAR)target_offset;
+			temp_segment += segment_list[target_segment]->base & 0xf; /* non-para seg */
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temp_segment & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temp_segment >> 8) & 0xff;
 			break;
 		case FIX_LBYTE:
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += targofs & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += seglist[targseg]->base & 0xf; /* non-para seg */
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] += target_offset & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] += segment_list[target_segment]->base & 0xf; /* non-para seg */
 			break;
 		case FIX_HBYTE:
-			templ = targofs + (seglist[targseg]->base & 0xf); /* non-para seg */
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += (templ >> 8) & 0xff;
+			temp_offset = target_offset + (segment_list[target_segment]->base & 0xf); /* non-para seg */
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] += (temp_offset >> 8) & 0xff;
 			break;
 		case FIX_SELF_LBYTE:
-			if ((seglist[targseg]->attr & SEG_ALIGN) == SEG_ABS)
+			if ((segment_list[target_segment]->attributes & SEG_ALIGN) == SEG_ABS)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
-				j = seglist[targseg]->base + targofs;
-				j -= seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 1;
+				j = segment_list[target_segment]->base + target_offset;
+				j -= segment_list[relocations[i]->segment]->base + relocations[i]->offset + 1;
 				if ((j < -128) || (j > 127))
 				{
+					//NOTICE:
 					printf("Error: Reloc %li out of range\n", i);
 				}
 				else
 				{
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += j;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset] += (UCHAR)j;
 				}
 			}
 			break;
 		case FIX_SELF_OFS16:
 		case FIX_SELF_OFS16_2:
-			if ((seglist[targseg]->attr & SEG_ALIGN) == SEG_ABS)
+			if ((segment_list[target_segment]->attributes & SEG_ALIGN) == SEG_ABS)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
-				j = seglist[targseg]->base + targofs;
-				j -= seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 2;
+				j = segment_list[target_segment]->base + target_offset;
+				j -= segment_list[relocations[i]->segment]->base + relocations[i]->offset + 2;
 				if ((j < -32768) || (j > 32767))
 				{
+					//NOTICE:
 					printf("Error: Reloc %li out of range\n", i);
 				}
 				else
 				{
-					temps = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-					temps += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-					temps += j;
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = temps & 0xff;
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (temps >> 8) & 0xff;
+					temp_segment = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+					temp_segment += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+					temp_segment += (UCHAR)j;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temp_segment & 0xff;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temp_segment >> 8) & 0xff;
 				}
 			}
 			break;
 		case FIX_SELF_OFS32:
 		case FIX_SELF_OFS32_2:
-			if ((seglist[targseg]->attr & SEG_ALIGN) == SEG_ABS)
+			if ((segment_list[target_segment]->attributes & SEG_ALIGN) == SEG_ABS)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
-				j = seglist[targseg]->base + targofs;
-				j -= seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 4;
-				templ = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] << 16;
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] << 24;
-				templ += j;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = templ & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (templ >> 8) & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] = (templ >> 16) & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] = (templ >> 24) & 0xff;
+				j = segment_list[target_segment]->base + target_offset;
+				j -= segment_list[relocations[i]->segment]->base + relocations[i]->offset + 4;
+				temp_offset = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+				temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+				temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+				temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
+				temp_offset += j;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temp_offset & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temp_offset >> 8) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (temp_offset >> 16) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (temp_offset >> 24) & 0xff;
 			}
 			break;
 		default:
-			printf("Reloc %li:Relocation type %i not supported\n", i, relocs[i]->rtype);
-			errcount++;
+			printf("Reloc %li:Relocation type %i not supported\n", i, relocations[i]->rtype);
+			error_count++;
 		}
 	}
 
-	if (relcount > 65535)
+	if (relocation_count > 0x10000)
 	{
 		printf("Too many relocations\n");
 		exit(1);
 	}
 
-	headbuf[0x06] = relcount & 0xff;
-	headbuf[0x07] = relcount >> 8;
-	i = relcount * 4 + 0x4f;
+	header_buffer[0x06] = (UCHAR)(relocation_count & 0xff);
+	header_buffer[0x07] = (UCHAR)(relocation_count >> 8);
+	i = relocation_count * 4 + 0x4f;
 	i >>= 4;
 	totlength += i << 4;
-	headbuf[0x08] = i & 0xff;
-	headbuf[0x09] = i >> 8;
+	header_buffer[0x08] = (UCHAR)(i & 0xff);
+	header_buffer[0x09] = (UCHAR)(i >> 8);
 	i = totlength % 512;
-	headbuf[0x02] = i & 0xff;
-	headbuf[0x03] = i >> 8;
+	header_buffer[0x02] = (UCHAR)(i & 0xff);
+	header_buffer[0x03] = (UCHAR)(i >> 8);
 	i = (totlength + 0x1ff) >> 9;
-	if (i > 65535)
+	if (i > 0x10000)
 	{
 		printf("File too large\n");
 		exit(1);
 	}
-	headbuf[0x04] = i & 0xff;
-	headbuf[0x05] = i >> 8;
+	header_buffer[0x04] = (UCHAR)(i & 0xff);
+	header_buffer[0x05] = (UCHAR)(i >> 8);
 
-
-	if (errcount != 0)
+	if (error_count != 0)
 	{
 		exit(1);
 	}
 
-	outfile = fopen(outname, "wb");
+	outfile = fopen(out_name, "wb");
 	if (!outfile)
 	{
-		printf("Error writing to file %s\n", outname);
+		printf("Error writing to file %s\n", out_name);
 		exit(1);
 	}
 
-	i = (headbuf[0x08] + 256 * headbuf[0x09]) * 16;
-	if (fwrite(headbuf, 1, i, outfile) != i)
+	i = (header_buffer[0x08] + (((UINT)header_buffer[0x09]) << 8)) * 16;
+	if (fwrite(header_buffer, 1, i, outfile) != i)
 	{
-		printf("Error writing to file %s\n", outname);
+		printf("Error writing to file %s\n", out_name);
 		exit(1);
 	}
 
@@ -810,17 +815,17 @@ void output_exe_file(PCHAR outname)
 
 	for (i = 0; i < outcount; i++)
 	{
-		if (outlist[i] && ((outlist[i]->attr & SEG_ALIGN) != SEG_ABS))
+		if (out_list[i] && ((out_list[i]->attributes & SEG_ALIGN) != SEG_ABS))
 		{
-			if (started > outlist[i]->base)
+			if (started > out_list[i]->base)
 			{
 				printf("Segment overlap\n");
 				fclose(outfile);
 				exit(1);
 			}
-			if (padsegments)
+			if (pad_segments)
 			{
-				while (started < outlist[i]->base)
+				while (started < out_list[i]->base)
 				{
 					fputc(0, outfile);
 					started++;
@@ -828,20 +833,20 @@ void output_exe_file(PCHAR outname)
 			}
 			else
 			{
-				started = outlist[i]->base;
+				started = out_list[i]->base;
 			}
-			for (j = 0; j < outlist[i]->length; j++)
+			for (j = 0; j < out_list[i]->length; j++)
 			{
-				if (get_n_bit(outlist[i]->datmask, j))
+				if (get_n_bit(out_list[i]->data_mask, j))
 				{
 					for (; lastout < started; lastout++)
 					{
 						fputc(0, outfile);
 					}
-					fputc(outlist[i]->data[j], outfile);
+					fputc(out_list[i]->data[j], outfile);
 					lastout = started + 1;
 				}
-				else if (padsegments)
+				else if (pad_segments)
 				{
 					fputc(0, outfile);
 					lastout = started + 1;
@@ -854,21 +859,21 @@ void output_exe_file(PCHAR outname)
 	if (lastout != started)
 	{
 		fseek(outfile, 0, SEEK_SET);
-		lastout += (headbuf[8] + 256 * headbuf[9]) << 4;
-		i = lastout % 512;
-		headbuf[0x02] = i & 0xff;
-		headbuf[0x03] = i >> 8;
+		lastout += (header_buffer[8] + (((UINT)header_buffer[9]) << 8)) << 4;
+		i = lastout &0x1ff;
+		header_buffer[0x02] = (UCHAR)(i & 0xff);
+		header_buffer[0x03] = (UCHAR)(i >> 8);
 		i = (lastout + 0x1ff) >> 9;
-		headbuf[0x04] = i & 0xff;
-		headbuf[0x05] = i >> 8;
+		header_buffer[0x04] = (UCHAR)(i & 0xff);
+		header_buffer[0x05] = (UCHAR)(i >> 8);
 		i = ((totlength - lastout) + 0xf) >> 4;
-		if (i > 65535)
+		if (i > 0x10000)
 		{
 			printf("Memory requirements too high\n");
 		}
-		headbuf[0x0a] = i & 0xff;
-		headbuf[0x0b] = i >> 8;
-		if (fwrite(headbuf, 1, 12, outfile) != 12)
+		header_buffer[0x0a] = (UCHAR)(i & 0xff);
+		header_buffer[0x0b] = (UCHAR)(i >> 8);
+		if (fwrite(header_buffer, 1, 12, outfile) != 12)
 		{
 			printf("Error writing to file\n");
 			exit(1);
@@ -881,26 +886,26 @@ static long create_output_section(char* name, UINT winFlags)
 {
 	UINT j;
 
-	outlist = (PPSEG)check_realloc(outlist, sizeof(PSEG) * (outcount + 1));
-	outlist[outcount] = (PSEG)check_malloc(sizeof(SEG));
-	seglist = (PPSEG)check_realloc(seglist, sizeof(PSEG) * (segcount + 1));
-	seglist = (PPSEG)check_realloc(seglist, (segcount + 1) * sizeof(PSEG));
-	seglist[segcount] = outlist[outcount];
-	namelist = (PPCHAR)check_realloc(namelist, (namecount + 1) * sizeof(PCHAR));
-	namelist[namecount] = check_strdup(name);
-	outlist[outcount]->nameindex = namecount;
-	outlist[outcount]->classindex = -1;
-	outlist[outcount]->overlayindex = -1;
-	namecount++;
-	j = outlist[outcount - 1]->base + outlist[outcount - 1]->length;
-	j += (objectAlign - 1);
-	j &= (0xffffffff - (objectAlign - 1));
-	outlist[outcount]->base = j;
-	outlist[outcount]->length = 0;
-	outlist[outcount]->data = outlist[outcount]->datmask = NULL;
-	outlist[outcount]->absofs = segcount;
-	outlist[outcount]->attr = SEG_BYTE | SEG_PRIVATE;
-	outlist[outcount]->winFlags = winFlags ^ WINF_NEG_FLAGS;
+	out_list = (PPSEG)check_realloc(out_list, sizeof(PSEG) * (outcount + 1));
+	out_list[outcount] = (PSEG)check_malloc(sizeof(SEG));
+	segment_list = (PPSEG)check_realloc(segment_list, sizeof(PSEG) * (segcount + 1));
+	segment_list = (PPSEG)check_realloc(segment_list, (segcount + 1) * sizeof(PSEG));
+	segment_list[segcount] = out_list[outcount];
+	name_list = (PPCHAR)check_realloc(name_list, (name_count + 1) * sizeof(PCHAR));
+	name_list[name_count] = check_strdup(name);
+	out_list[outcount]->name_index = name_count;
+	out_list[outcount]->class_index = -1;
+	out_list[outcount]->overlay_index = -1;
+	name_count++;
+	j = out_list[outcount - 1]->base + out_list[outcount - 1]->length;
+	j += (object_align - 1);
+	j &= (0xffffffff - (object_align - 1));
+	out_list[outcount]->base = j;
+	out_list[outcount]->length = 0;
+	out_list[outcount]->data = out_list[outcount]->data_mask = NULL;
+	out_list[outcount]->absolute_offset = segcount;
+	out_list[outcount]->attributes = SEG_BYTE | SEG_PRIVATE;
+	out_list[outcount]->win_flags = winFlags ^ WINF_NEG_FLAGS;
 	segcount++;
 	outcount++;
 	return outcount - 1;
@@ -921,18 +926,18 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 	if (impsectNum < 0) return;
 	for (i = 0; i < extcount; i++)
 	{
-		if (externs[i].flags != EXT_MATCHEDIMPORT) continue;
+		if (extern_records[i].flags != EXT_MATCHEDIMPORT) continue;
 		for (j = 0; j < reqcount; j++)
 		{
-			if (reqimps[j] == externs[i].impnum) break;
+			if (reqimps[j] == extern_records[i].import) break;
 		}
 		if (j != reqcount) continue;
 		reqimps = (UINT*)check_realloc(reqimps, (reqcount + 1) * sizeof(UINT));
-		reqimps[reqcount] = externs[i].impnum;
+		reqimps[reqcount] = extern_records[i].import;
 		reqcount++;
 		for (j = 0; j < dllCount; j++)
 		{
-			if (!strcmp(impdefs[externs[i].impnum].mod_name, dllNames[j])) break;
+			if (!strcmp(import_definitions[extern_records[i].import].mod_name, dllNames[j])) break;
 		}
 		if (j == dllCount)
 		{
@@ -940,18 +945,18 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 			dllNumImps = (int*)check_realloc(dllNumImps, (dllCount + 1) * sizeof(int));
 			dllImpsDone = (int*)check_realloc(dllImpsDone, (dllCount + 1) * sizeof(int));
 			dllImpNameSize = (int*)check_realloc(dllImpNameSize, (dllCount + 1) * sizeof(int));
-			dllNames[dllCount] = impdefs[externs[i].impnum].mod_name;
+			dllNames[dllCount] = import_definitions[extern_records[i].import].mod_name;
 			dllNumImps[dllCount] = 0;
 			dllImpsDone[dllCount] = 0;
 			dllImpNameSize[dllCount] = 0;
-			dllNameSize += strlen(dllNames[dllCount]) + 1;
+			dllNameSize += (UINT)strlen(dllNames[dllCount]) + 1;
 			if (dllNameSize & 1) dllNameSize++;
 			dllCount++;
 		}
 		dllNumImps[j]++;
-		if (impdefs[externs[i].impnum].flags == 0) /* import by name? */
+		if (import_definitions[extern_records[i].import].flags == 0) /* import by name? */
 		{
-			dllImpNameSize[j] += strlen(impdefs[externs[i].impnum].imp_name) + 3;
+			dllImpNameSize[j] += (int)strlen(import_definitions[extern_records[i].import].imp_name) + 3;
 			/* the +3 ensure room for 2-byte hint and null terminator */
 			if (dllImpNameSize[j] & 1) dllImpNameSize[j]++;
 		}
@@ -970,8 +975,8 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 	k += objectTable[-PE_OBJECTENTRY_SIZE + 18] << 16;
 	k += objectTable[-PE_OBJECTENTRY_SIZE + 19] << 24;
 
-	k += fileAlign - 1;
-	k &= (0xffffffff - (fileAlign - 1)); /* aligned */
+	k += file_align - 1;
+	k &= (0xffffffff - (file_align - 1)); /* aligned */
 
 	/* k is now physical location of this object */
 
@@ -996,8 +1001,8 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 	objectTable[14] = (k >> 16) & 0xff;
 	objectTable[15] = (k >> 24) & 0xff;
 
-	impsect = outlist[impsectNum];
-	impsect->base = k + imageBase; /* get base address of section */
+	impsect = out_list[impsectNum];
+	impsect->base = k + image_base; /* get base address of section */
 
 	impsect->length = (dllCount + 1) * PE_IMPORTDIRENTRY_SIZE + dllNameSize;
 	if (impsect->length & 3) impsect->length += 4 - (impsect->length & 3); /* align to 4-byte boundary */
@@ -1019,10 +1024,10 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 	impsect->length += i;
 
 	impsect->data = (PUCHAR)check_malloc(impsect->length);
-	impsect->datmask = (PUCHAR)check_malloc((impsect->length + 7) / 8);
+	impsect->data_mask = (PUCHAR)check_malloc((impsect->length + 7) / 8);
 	for (i = 0; i < (impsect->length + 7) / 8; i++)
 	{
-		impsect->datmask[i] = 0xff;
+		impsect->data_mask[i] = 0xff;
 	}
 
 	/* end of directory entries=name table */
@@ -1031,10 +1036,10 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 	{
 		/* add directory entry */
 		j = i * PE_IMPORTDIRENTRY_SIZE;
-		impsect->data[j + 0] = (thunkPos - imageBase) & 0xff; /* address of first thunk table */
-		impsect->data[j + 1] = ((thunkPos - imageBase) >> 8) & 0xff;
-		impsect->data[j + 2] = ((thunkPos - imageBase) >> 16) & 0xff;
-		impsect->data[j + 3] = ((thunkPos - imageBase) >> 24) & 0xff;
+		impsect->data[j + 0] = (thunkPos - image_base) & 0xff; /* address of first thunk table */
+		impsect->data[j + 1] = ((thunkPos - image_base) >> 8) & 0xff;
+		impsect->data[j + 2] = ((thunkPos - image_base) >> 16) & 0xff;
+		impsect->data[j + 3] = ((thunkPos - image_base) >> 24) & 0xff;
 		impsect->data[j + 4] = 0;/* zero out time stamp */
 		impsect->data[j + 5] = 0;
 		impsect->data[j + 6] = 0;
@@ -1043,18 +1048,18 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 		impsect->data[j + 9] = 0;
 		impsect->data[j + 10] = 0;
 		impsect->data[j + 11] = 0;
-		impsect->data[j + 12] = (namePos - imageBase) & 0xff; /* address of DLL name */
-		impsect->data[j + 13] = ((namePos - imageBase) >> 8) & 0xff;
-		impsect->data[j + 14] = ((namePos - imageBase) >> 16) & 0xff;
-		impsect->data[j + 15] = ((namePos - imageBase) >> 24) & 0xff;
+		impsect->data[j + 12] = (namePos - image_base) & 0xff; /* address of DLL name */
+		impsect->data[j + 13] = ((namePos - image_base) >> 8) & 0xff;
+		impsect->data[j + 14] = ((namePos - image_base) >> 16) & 0xff;
+		impsect->data[j + 15] = ((namePos - image_base) >> 24) & 0xff;
 		thunk2Pos = thunkPos + (dllNumImps[i] + 1) * 4; /* address of second thunk table */
-		impsect->data[j + 16] = (thunk2Pos - imageBase) & 0xff; /* store it */
-		impsect->data[j + 17] = ((thunk2Pos - imageBase) >> 8) & 0xff;
-		impsect->data[j + 18] = ((thunk2Pos - imageBase) >> 16) & 0xff;
-		impsect->data[j + 19] = ((thunk2Pos - imageBase) >> 24) & 0xff;
+		impsect->data[j + 16] = (thunk2Pos - image_base) & 0xff; /* store it */
+		impsect->data[j + 17] = ((thunk2Pos - image_base) >> 8) & 0xff;
+		impsect->data[j + 18] = ((thunk2Pos - image_base) >> 16) & 0xff;
+		impsect->data[j + 19] = ((thunk2Pos - image_base) >> 24) & 0xff;
 		/* add name to table */
 		strcpy(impsect->data + namePos - impsect->base, dllNames[i]);
-		namePos += strlen(dllNames[i]) + 1;
+		namePos += (UINT)strlen(dllNames[i]) + 1;
 		if (namePos & 1)
 		{
 			impsect->data[namePos - impsect->base] = 0;
@@ -1063,19 +1068,19 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 		/* add imported names to table */
 		for (k = 0; k < reqcount; k++)
 		{
-			if (strcmp(impdefs[reqimps[k]].mod_name, dllNames[i]) != 0) continue;
-			if (impdefs[reqimps[k]].flags == 0)
+			if (strcmp(import_definitions[reqimps[k]].mod_name, dllNames[i]) != 0) continue;
+			if (import_definitions[reqimps[k]].flags == 0)
 			{
 				/* store pointers to name entry in thunk tables */
-				impsect->data[thunkPos - impsect->base] = (impNamePos - imageBase) & 0xff;
-				impsect->data[thunkPos - impsect->base + 1] = ((impNamePos - imageBase) >> 8) & 0xff;
-				impsect->data[thunkPos - impsect->base + 2] = ((impNamePos - imageBase) >> 16) & 0xff;
-				impsect->data[thunkPos - impsect->base + 3] = ((impNamePos - imageBase) >> 24) & 0xff;
+				impsect->data[thunkPos - impsect->base] = (impNamePos - image_base) & 0xff;
+				impsect->data[thunkPos - impsect->base + 1] = ((impNamePos - image_base) >> 8) & 0xff;
+				impsect->data[thunkPos - impsect->base + 2] = ((impNamePos - image_base) >> 16) & 0xff;
+				impsect->data[thunkPos - impsect->base + 3] = ((impNamePos - image_base) >> 24) & 0xff;
 
-				impsect->data[thunk2Pos - impsect->base] = (impNamePos - imageBase) & 0xff;
-				impsect->data[thunk2Pos - impsect->base + 1] = ((impNamePos - imageBase) >> 8) & 0xff;
-				impsect->data[thunk2Pos - impsect->base + 2] = ((impNamePos - imageBase) >> 16) & 0xff;
-				impsect->data[thunk2Pos - impsect->base + 3] = ((impNamePos - imageBase) >> 24) & 0xff;
+				impsect->data[thunk2Pos - impsect->base] = (impNamePos - image_base) & 0xff;
+				impsect->data[thunk2Pos - impsect->base + 1] = ((impNamePos - image_base) >> 8) & 0xff;
+				impsect->data[thunk2Pos - impsect->base + 2] = ((impNamePos - image_base) >> 16) & 0xff;
+				impsect->data[thunk2Pos - impsect->base + 3] = ((impNamePos - image_base) >> 24) & 0xff;
 
 				/* no hint */
 				impsect->data[impNamePos - impsect->base] = 0;
@@ -1083,8 +1088,8 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 				impNamePos += 2;
 				/* store name */
 				strcpy(impsect->data + impNamePos - impsect->base,
-					impdefs[reqimps[k]].imp_name);
-				impNamePos += strlen(impdefs[reqimps[k]].imp_name) + 1;
+					import_definitions[reqimps[k]].imp_name);
+				impNamePos += (UINT)strlen(import_definitions[reqimps[k]].imp_name) + 1;
 				if (impNamePos & 1)
 				{
 					impsect->data[impNamePos - impsect->base] = 0;
@@ -1094,7 +1099,7 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 			else
 			{
 				/* store ordinal number in thunk tables */
-				j = impdefs[reqimps[k]].ordinal + PE_ORDINAL_FLAG;
+				j = import_definitions[reqimps[k]].ordinal + PE_ORDINAL_FLAG;
 				impsect->data[thunkPos - impsect->base] = (j) & 0xff;
 				impsect->data[thunkPos - impsect->base + 1] = (j >> 8) & 0xff;
 				impsect->data[thunkPos - impsect->base + 2] = (j >> 16) & 0xff;
@@ -1105,8 +1110,8 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 				impsect->data[thunk2Pos - impsect->base + 2] = (j >> 16) & 0xff;
 				impsect->data[thunk2Pos - impsect->base + 3] = (j >> 24) & 0xff;
 			}
-			impdefs[reqimps[k]].segnum = impsect->absofs;
-			impdefs[reqimps[k]].ofs = thunk2Pos - impsect->base;
+			import_definitions[reqimps[k]].segment = impsect->absolute_offset;
+			import_definitions[reqimps[k]].offset = thunk2Pos - impsect->base;
 			thunkPos += 4;
 			thunk2Pos += 4;
 		}
@@ -1129,9 +1134,9 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 	}
 
 	k = impsect->length;
-	k += objectAlign - 1;
-	k &= (0xffffffff - (objectAlign - 1));
-	impsect->virtualSize = k;
+	k += object_align - 1;
+	k &= (0xffffffff - (object_align - 1));
+	impsect->virtual_size = k;
 	objectTable[8] = k & 0xff; /* store virtual size (in memory) of segment */
 	objectTable[9] = (k >> 8) & 0xff;
 	objectTable[10] = (k >> 16) & 0xff;
@@ -1146,13 +1151,13 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 	return;
 }
 
-static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
+static void build_pe_relocs(long relocSectNum, PUCHAR object_table)
 {
 	int i, j;
 	PRELOC r;
-	PSEG relocSect;
-	UINT curStartPos;
-	UINT curBlockPos;
+	PSEG relocate_section;
+	UINT current_start_position;
+	UINT current_block_position;
 	UINT k;
 	long targseg;
 	UINT targofs;
@@ -1162,8 +1167,8 @@ static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
 	/* do fixups */
 	for (i = 0; i < fixcount; i++)
 	{
-		get_fixup_target(outname,relocs[i], &targseg, &targofs, TRUE);
-		switch (relocs[i]->rtype)
+		get_fixup_target(out_name, relocations[i], &targseg, &targofs, TRUE);
+		switch (relocations[i]->rtype)
 		{
 		case FIX_BASE:
 		case FIX_PTR1616:
@@ -1172,70 +1177,70 @@ static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
 			{
 				printf("Reloc %li:Segment selector relocations are not supported in PE files\n", i);
 				printf("rtype=%02X, frame=%04X, target=%04X, ftype=%02X, ttype=%02X\n",
-					relocs[i]->rtype, relocs[i]->frame, relocs[i]->target, relocs[i]->ftype,
-					relocs[i]->ttype);
+					relocations[i]->rtype, relocations[i]->frame, relocations[i]->target, relocations[i]->ftype,
+					relocations[i]->ttype);
 
-				errcount++;
+				error_count++;
 			}
 			else
 			{
-				j = relocs[i]->ofs;
-				if (relocs[i]->rtype == FIX_PTR1616)
+				j = relocations[i]->offset;
+				if (relocations[i]->rtype == FIX_PTR1616)
 				{
 					if (targofs > 0xffff)
 					{
 						printf("Relocs %li:Warning 32 bit offset in 16 bit field\n", i);
 					}
 					targofs &= 0xffff;
-					temps = seglist[relocs[i]->segnum]->data[j];
-					temps += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-					temps += targofs;
-					seglist[relocs[i]->segnum]->data[j] = temps & 0xff;
-					seglist[relocs[i]->segnum]->data[j + 1] = (temps >> 8) & 0xff;
+					temps = segment_list[relocations[i]->segment]->data[j];
+					temps += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+					temps += (unsigned short)targofs;
+					segment_list[relocations[i]->segment]->data[j] = temps & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 1] = (temps >> 8) & 0xff;
 					j += 2;
 				}
-				else if (relocs[i]->rtype == FIX_PTR1632)
+				else if (relocations[i]->rtype == FIX_PTR1632)
 				{
-					templ = seglist[relocs[i]->segnum]->data[j];
-					templ += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-					templ += seglist[relocs[i]->segnum]->data[j + 2] << 16;
-					templ += seglist[relocs[i]->segnum]->data[j + 3] << 24;
+					templ = segment_list[relocations[i]->segment]->data[j];
+					templ += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+					templ += segment_list[relocations[i]->segment]->data[j + 2] << 16;
+					templ += segment_list[relocations[i]->segment]->data[j + 3] << 24;
 					templ += targofs;
-					seglist[relocs[i]->segnum]->data[j] = templ & 0xff;
-					seglist[relocs[i]->segnum]->data[j + 1] = (templ >> 8) & 0xff;
-					seglist[relocs[i]->segnum]->data[j + 2] = (templ >> 16) & 0xff;
-					seglist[relocs[i]->segnum]->data[j + 3] = (templ >> 24) & 0xff;
+					segment_list[relocations[i]->segment]->data[j] = templ & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 1] = (templ >> 8) & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 2] = (templ >> 16) & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 3] = (templ >> 24) & 0xff;
 					j += 4;
 				}
-				temps = seglist[relocs[i]->segnum]->data[j];
-				temps += seglist[relocs[i]->segnum]->data[j + 1] << 8;
-				temps += seglist[targseg]->absframe;
-				seglist[relocs[i]->segnum]->data[j] = temps & 0xff;
-				seglist[relocs[i]->segnum]->data[j + 1] = (temps >> 8) & 0xff;
+				temps = segment_list[relocations[i]->segment]->data[j];
+				temps += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+				temps += (unsigned short)segment_list[targseg]->absolute_frame;
+				segment_list[relocations[i]->segment]->data[j] = temps & 0xff;
+				segment_list[relocations[i]->segment]->data[j + 1] = (temps >> 8) & 0xff;
 			}
 			break;
 		case FIX_OFS32:
 		case FIX_OFS32_2:
-			templ = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] << 16;
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] << 24;
+			templ = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
 			templ += targofs;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = templ & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (templ >> 8) & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] = (templ >> 16) & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] = (templ >> 24) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] = templ & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (templ >> 8) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (templ >> 16) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (templ >> 24) & 0xff;
 			break;
 		case FIX_RVA32:
-			templ = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] << 16;
-			templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] << 24;
-			templ += targofs - imageBase;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = templ & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (templ >> 8) & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] = (templ >> 16) & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] = (templ >> 24) & 0xff;
+			templ = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+			templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
+			templ += targofs - image_base;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] = templ & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (templ >> 8) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (templ >> 16) & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (templ >> 24) & 0xff;
 			break;
 		case FIX_OFS16:
 		case FIX_OFS16_2:
@@ -1244,34 +1249,34 @@ static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
 				printf("Relocs %li:Warning 32 bit offset in 16 bit field\n", i);
 			}
 			targofs &= 0xffff;
-			temps = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-			temps += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-			temps += targofs;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = temps & 0xff;
-			seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (temps >> 8) & 0xff;
+			temps = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+			temps += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+			temps += (unsigned short)targofs;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temps & 0xff;
+			segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temps >> 8) & 0xff;
 			break;
 		case FIX_LBYTE:
 		case FIX_HBYTE:
 			printf("Error: Byte relocations not supported in PE files\n");
-			errcount++;
+			error_count++;
 			break;
 		case FIX_SELF_LBYTE:
 			if (targseg >= 0)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
 				j = targofs;
-				j -= (seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 1);
+				j -= (segment_list[relocations[i]->segment]->base + relocations[i]->offset + 1);
 				if ((j < -128) || (j > 127))
 				{
 					printf("Error: Reloc %li out of range\n", i);
 				}
 				else
 				{
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs] += j;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset] += j;
 				}
 			}
 			break;
@@ -1280,23 +1285,23 @@ static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
 			if (targseg >= 0)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
 				j = targofs;
-				j -= (seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 2);
+				j -= (segment_list[relocations[i]->segment]->base + relocations[i]->offset + 2);
 				if ((j < -32768) || (j > 32767))
 				{
 					printf("Error: Reloc %li out of range\n", i);
 				}
 				else
 				{
-					temps = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-					temps += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
+					temps = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+					temps += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
 					temps += j;
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = temps & 0xff;
-					seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (temps >> 8) & 0xff;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temps & 0xff;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temps >> 8) & 0xff;
 				}
 			}
 			break;
@@ -1305,50 +1310,50 @@ static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
 			if (targseg >= 0)
 			{
 				printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
-				errcount++;
+				error_count++;
 			}
 			else
 			{
 				j = targofs;
-				j -= (seglist[relocs[i]->segnum]->base + relocs[i]->ofs + 4);
-				templ = seglist[relocs[i]->segnum]->data[relocs[i]->ofs];
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] << 8;
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] << 16;
-				templ += seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] << 24;
+				j -= (segment_list[relocations[i]->segment]->base + relocations[i]->offset + 4);
+				templ = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+				templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+				templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+				templ += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
 				templ += j;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs] = templ & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 1] = (templ >> 8) & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 2] = (templ >> 16) & 0xff;
-				seglist[relocs[i]->segnum]->data[relocs[i]->ofs + 3] = (templ >> 24) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset] = templ & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (templ >> 8) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (templ >> 16) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (templ >> 24) & 0xff;
 			}
 			break;
 		default:
-			printf("Reloc %li:Relocation type %i not supported\n", i, relocs[i]->rtype);
-			errcount++;
+			printf("Reloc %li:Relocation type %i not supported\n", i, relocations[i]->rtype);
+			error_count++;
 		}
 	}
 
 	/* get reloc section */
-	relocSect = outlist[relocSectNum]; /* get section structure */
+	relocate_section = out_list[relocSectNum]; /* get section structure */
 
 	/* sort relocations into order of increasing address */
 	for (i = 1; i < fixcount; i++)
 	{
-		r = relocs[i]; /* save current reloc */
+		r = relocations[i]; /* save current reloc */
 		for (j = i - 1; j >= 0; j--) /* search backwards through table */
 		{
 			/* stop once we've found a target before current */
-			if (r->outputPos >= relocs[j]->outputPos) break;
+			if (r->output_pos >= relocations[j]->output_pos) break;
 			/* otherwise move reloc entry up */
-			relocs[j + 1] = relocs[j];
+			relocations[j + 1] = relocations[j];
 		}
 		j++; /* point to first entry after non-match */
-		relocs[j] = r; /* put current reloc in position */
+		relocations[j] = r; /* put current reloc in position */
 	}
 
-	for (i = 0, curStartPos = 0, curBlockPos = 0; i < fixcount; i++)
+	for (i = 0, current_start_position = 0, current_block_position = 0; i < fixcount; i++)
 	{
-		switch (relocs[i]->rtype)
+		switch (relocations[i]->rtype)
 		{
 		case FIX_SELF_OFS32:
 		case FIX_SELF_OFS32_2:
@@ -1360,51 +1365,51 @@ static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
 		default:
 			break;
 		}
-		if (relocs[i]->outputPos >= (curStartPos + 0x1000)) /* more than 4K past block start? */
+		if (relocations[i]->output_pos >= (current_start_position + 0x1000)) /* more than 4K past block start? */
 		{
-			j = relocSect->length & 3;
+			j = relocate_section->length & 3;
 			if (j) /* unaligned block position */
 			{
-				relocSect->length += 4 - j; /* update length to align block */
+				relocate_section->length += 4 - j; /* update length to align block */
 				/* and block memory */
-				relocSect->data = (PUCHAR)check_realloc(relocSect->data, relocSect->length);
+				relocate_section->data = (PUCHAR)check_realloc(relocate_section->data, relocate_section->length);
 				/* update size of current reloc block */
-				k = relocSect->data[curBlockPos + 4];
-				k += relocSect->data[curBlockPos + 5] << 8;
-				k += relocSect->data[curBlockPos + 6] << 16;
-				k += relocSect->data[curBlockPos + 7] << 24;
+				k = relocate_section->data[current_block_position + 4];
+				k += relocate_section->data[current_block_position + 5] << 8;
+				k += relocate_section->data[current_block_position + 6] << 16;
+				k += relocate_section->data[current_block_position + 7] << 24;
 				k += 4 - j;
-				relocSect->data[curBlockPos + 4] = k & 0xff;
-				relocSect->data[curBlockPos + 5] = (k >> 8) & 0xff;
-				relocSect->data[curBlockPos + 6] = (k >> 16) & 0xff;
-				relocSect->data[curBlockPos + 7] = (k >> 24) & 0xff;
+				relocate_section->data[current_block_position + 4] = k & 0xff;
+				relocate_section->data[current_block_position + 5] = (k >> 8) & 0xff;
+				relocate_section->data[current_block_position + 6] = (k >> 16) & 0xff;
+				relocate_section->data[current_block_position + 7] = (k >> 24) & 0xff;
 				for (j = 4 - j; j > 0; j--)
 				{
-					relocSect->data[relocSect->length - j] = 0;
+					relocate_section->data[relocate_section->length - j] = 0;
 				}
 			}
-			curBlockPos = relocSect->length; /* get address in section of current block */
-			relocSect->length += 8; /* 8 bytes block header */
+			current_block_position = relocate_section->length; /* get address in section of current block */
+			relocate_section->length += 8; /* 8 bytes block header */
 			/* increase size of block */
-			relocSect->data = (PUCHAR)check_realloc(relocSect->data, relocSect->length);
+			relocate_section->data = (PUCHAR)check_realloc(relocate_section->data, relocate_section->length);
 			/* store reloc base address, and block size */
-			curStartPos = relocs[i]->outputPos & 0xfffff000; /* start of mem page */
+			current_start_position = relocations[i]->output_pos & 0xfffff000; /* start of mem page */
 
 			/* start pos is relative to image base */
-			relocSect->data[curBlockPos] = (curStartPos - imageBase) & 0xff;
-			relocSect->data[curBlockPos + 1] = ((curStartPos - imageBase) >> 8) & 0xff;
-			relocSect->data[curBlockPos + 2] = ((curStartPos - imageBase) >> 16) & 0xff;
-			relocSect->data[curBlockPos + 3] = ((curStartPos - imageBase) >> 24) & 0xff;
+			relocate_section->data[current_block_position] = (current_start_position - image_base) & 0xff;
+			relocate_section->data[current_block_position + 1] = ((current_start_position - image_base) >> 8) & 0xff;
+			relocate_section->data[current_block_position + 2] = ((current_start_position - image_base) >> 16) & 0xff;
+			relocate_section->data[current_block_position + 3] = ((current_start_position - image_base) >> 24) & 0xff;
 
-			relocSect->data[curBlockPos + 4] = 8; /* start size is 8 bytes */
-			relocSect->data[curBlockPos + 5] = 0;
-			relocSect->data[curBlockPos + 6] = 0;
-			relocSect->data[curBlockPos + 7] = 0;
+			relocate_section->data[current_block_position + 4] = 8; /* start size is 8 bytes */
+			relocate_section->data[current_block_position + 5] = 0;
+			relocate_section->data[current_block_position + 6] = 0;
+			relocate_section->data[current_block_position + 7] = 0;
 		}
-		relocSect->data = (PUCHAR)check_realloc(relocSect->data, relocSect->length + 2);
+		relocate_section->data = (PUCHAR)check_realloc(relocate_section->data, relocate_section->length + 2);
 
-		j = relocs[i]->outputPos - curStartPos; /* low 12 bits of address */
-		switch (relocs[i]->rtype)
+		j = relocations[i]->output_pos - current_start_position; /* low 12 bits of address */
+		switch (relocations[i]->rtype)
 		{
 		case FIX_PTR1616:
 		case FIX_OFS16:
@@ -1417,92 +1422,92 @@ static void build_pe_relocs(long relocSectNum, PUCHAR objectTable)
 			j |= PE_REL_OFS32;
 		}
 		/* store relocation */
-		relocSect->data[relocSect->length] = j & 0xff;
-		relocSect->data[relocSect->length + 1] = (j >> 8) & 0xff;
+		relocate_section->data[relocate_section->length] = j & 0xff;
+		relocate_section->data[relocate_section->length + 1] = (j >> 8) & 0xff;
 		/* update block length */
-		relocSect->length += 2;
+		relocate_section->length += 2;
 		/* update size of current reloc block */
-		k = relocSect->data[curBlockPos + 4];
-		k += relocSect->data[curBlockPos + 5] << 8;
-		k += relocSect->data[curBlockPos + 6] << 16;
-		k += relocSect->data[curBlockPos + 7] << 24;
+		k = relocate_section->data[current_block_position + 4];
+		k += relocate_section->data[current_block_position + 5] << 8;
+		k += relocate_section->data[current_block_position + 6] << 16;
+		k += relocate_section->data[current_block_position + 7] << 24;
 		k += 2;
-		relocSect->data[curBlockPos + 4] = k & 0xff;
-		relocSect->data[curBlockPos + 5] = (k >> 8) & 0xff;
-		relocSect->data[curBlockPos + 6] = (k >> 16) & 0xff;
-		relocSect->data[curBlockPos + 7] = (k >> 24) & 0xff;
+		relocate_section->data[current_block_position + 4] = k & 0xff;
+		relocate_section->data[current_block_position + 5] = (k >> 8) & 0xff;
+		relocate_section->data[current_block_position + 6] = (k >> 16) & 0xff;
+		relocate_section->data[current_block_position + 7] = (k >> 24) & 0xff;
 	}
 	/* if no fixups, then build NOP fixups, to make Windows NT happy */
 	/* when it trys to relocate image */
-	if (relocSect->length == 0)
+	if (relocate_section->length == 0)
 	{
 		/* 12 bytes for dummy section */
-		relocSect->length = 12;
-		relocSect->data = (PUCHAR)check_malloc(12);
+		relocate_section->length = 12;
+		relocate_section->data = (PUCHAR)check_malloc(12);
 		/* zero it out for now */
-		for (i = 0; i < 12; i++) relocSect->data[i] = 0;
-		relocSect->data[4] = 12; /* size of block */
+		for (i = 0; i < 12; i++) relocate_section->data[i] = 0;
+		relocate_section->data[4] = 12; /* size of block */
 	}
 
-	relocSect->datmask = (PUCHAR)check_malloc((relocSect->length + 7) / 8);
-	for (i = 0; i < (relocSect->length + 7) / 8; i++)
+	relocate_section->data_mask = (PUCHAR)check_malloc((relocate_section->length + 7) / 8);
+	for (i = 0; i < (relocate_section->length + 7) / 8; i++)
 	{
-		relocSect->datmask[i] = 0xff;
+		relocate_section->data_mask[i] = 0xff;
 	}
 
-	objectTable += PE_OBJECTENTRY_SIZE * relocSectNum; /* point to reloc object entry */
-	k = relocSect->length;
-	k += objectAlign - 1;
-	k &= (0xffffffff - (objectAlign - 1));
-	relocSect->virtualSize = k;
-	objectTable[8] = k & 0xff; /* store virtual size (in memory) of segment */
-	objectTable[9] = (k >> 8) & 0xff;
-	objectTable[10] = (k >> 16) & 0xff;
-	objectTable[11] = (k >> 24) & 0xff;
+	object_table += PE_OBJECTENTRY_SIZE * relocSectNum; /* point to reloc object entry */
+	k = relocate_section->length;
+	k += object_align - 1;
+	k &= (0xffffffff - (object_align - 1));
+	relocate_section->virtual_size = k;
+	object_table[8] = k & 0xff; /* store virtual size (in memory) of segment */
+	object_table[9] = (k >> 8) & 0xff;
+	object_table[10] = (k >> 16) & 0xff;
+	object_table[11] = (k >> 24) & 0xff;
 
-	k = relocSect->length;
-	objectTable[16] = (k) & 0xff; /* store initialised data size */
-	objectTable[17] = (k >> 8) & 0xff;
-	objectTable[18] = (k >> 16) & 0xff;
-	objectTable[19] = (k >> 16) & 0xff;
+	k = relocate_section->length;
+	object_table[16] = (k) & 0xff; /* store initialised data size */
+	object_table[17] = (k >> 8) & 0xff;
+	object_table[18] = (k >> 16) & 0xff;
+	object_table[19] = (k >> 16) & 0xff;
 
-	k = objectTable[-PE_OBJECTENTRY_SIZE + 20]; /* get physical start of prev object */
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 21] << 8;
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 22] << 16;
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 23] << 24;
+	k = object_table[-PE_OBJECTENTRY_SIZE + 20]; /* get physical start of prev object */
+	k += object_table[-PE_OBJECTENTRY_SIZE + 21] << 8;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 22] << 16;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 23] << 24;
 
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 16]; /* add physical length of prev object */
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 17] << 8;
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 18] << 16;
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 19] << 24;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 16]; /* add physical length of prev object */
+	k += object_table[-PE_OBJECTENTRY_SIZE + 17] << 8;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 18] << 16;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 19] << 24;
 
-	k += fileAlign - 1;
-	k &= (0xffffffff - (fileAlign - 1)); /* aligned */
+	k += file_align - 1;
+	k &= (0xffffffff - (file_align - 1)); /* aligned */
 
 	/* k is now physical location of this object */
 
-	objectTable[20] = (k) & 0xff; /* store physical file offset */
-	objectTable[21] = (k >> 8) & 0xff;
-	objectTable[22] = (k >> 16) & 0xff;
-	objectTable[23] = (k >> 24) & 0xff;
+	object_table[20] = (k) & 0xff; /* store physical file offset */
+	object_table[21] = (k >> 8) & 0xff;
+	object_table[22] = (k >> 16) & 0xff;
+	object_table[23] = (k >> 24) & 0xff;
 
-	k = objectTable[-PE_OBJECTENTRY_SIZE + 12]; /* get virtual start of prev object */
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 13] << 8;
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 14] << 16;
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 15] << 24;
+	k = object_table[-PE_OBJECTENTRY_SIZE + 12]; /* get virtual start of prev object */
+	k += object_table[-PE_OBJECTENTRY_SIZE + 13] << 8;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 14] << 16;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 15] << 24;
 
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 8]; /* add virtual length of prev object */
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 9] << 8;
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 10] << 16;
-	k += objectTable[-PE_OBJECTENTRY_SIZE + 11] << 24;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 8]; /* add virtual length of prev object */
+	k += object_table[-PE_OBJECTENTRY_SIZE + 9] << 8;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 10] << 16;
+	k += object_table[-PE_OBJECTENTRY_SIZE + 11] << 24;
 
 	/* store base address (RVA) of section */
-	objectTable[12] = (k) & 0xff;
-	objectTable[13] = (k >> 8) & 0xff;
-	objectTable[14] = (k >> 16) & 0xff;
-	objectTable[15] = (k >> 24) & 0xff;
+	object_table[12] = (k) & 0xff;
+	object_table[13] = (k >> 8) & 0xff;
+	object_table[14] = (k >> 16) & 0xff;
+	object_table[15] = (k >> 24) & 0xff;
 
-	relocSect->base = k + imageBase; /* relocate section */
+	relocate_section->base = k + image_base; /* relocate section */
 
 	return;
 }
@@ -1525,11 +1530,11 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 	PEXPREC curName;
 
 	if (!expcount || (SectNum < 0)) return; /* return if no exports */
-	expSect = outlist[SectNum];
+	expSect = out_list[SectNum];
 
 	if (name)
 	{
-		namelen = strlen(name);
+		namelen = (UINT)strlen(name);
 		/* search backwards for path separator */
 		for (i = namelen - 1; (i >= 0) && (name[i] != PATH_CHAR); i--);
 		if (i >= 0) /* if found path separator */
@@ -1550,18 +1555,18 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 	for (i = 0; i < expcount; i++)
 	{
 		/* check we've got an exported name */
-		if (expdefs[i].exp_name && strlen(expdefs[i].exp_name))
+		if (export_definitions[i].exp_name && strlen(export_definitions[i].exp_name))
 		{
 			/* four bytes for name pointer */
 			/* two bytes for ordinal, 1 for null terminator */
-			expSect->length += strlen(expdefs[i].exp_name) + 7;
+			expSect->length += (UINT)strlen(export_definitions[i].exp_name) + 7;
 			numNames++;
 		}
 
-		if (expdefs[i].flags & EXP_ORD) /* ordinal? */
+		if (export_definitions[i].flags & EXP_ORD) /* ordinal? */
 		{
-			if (expdefs[i].ordinal < minOrd) minOrd = expdefs[i].ordinal;
-			if (expdefs[i].ordinal > maxOrd) maxOrd = expdefs[i].ordinal;
+			if (export_definitions[i].ordinal < minOrd) minOrd = export_definitions[i].ordinal;
+			if (export_definitions[i].ordinal > maxOrd) maxOrd = export_definitions[i].ordinal;
 		}
 	}
 
@@ -1584,9 +1589,9 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 
 	objectTable += PE_OBJECTENTRY_SIZE * SectNum; /* point to reloc object entry */
 	k = expSect->length;
-	k += objectAlign - 1;
-	k &= (0xffffffff - (objectAlign - 1));
-	expSect->virtualSize = k;
+	k += object_align - 1;
+	k &= (0xffffffff - (object_align - 1));
+	expSect->virtual_size = k;
 	objectTable[8] = k & 0xff; /* store virtual size (in memory) of segment */
 	objectTable[9] = (k >> 8) & 0xff;
 	objectTable[10] = (k >> 16) & 0xff;
@@ -1608,8 +1613,8 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 	k += objectTable[-PE_OBJECTENTRY_SIZE + 18] << 16;
 	k += objectTable[-PE_OBJECTENTRY_SIZE + 19] << 24;
 
-	k += fileAlign - 1;
-	k &= (0xffffffff - (fileAlign - 1)); /* aligned */
+	k += file_align - 1;
+	k &= (0xffffffff - (file_align - 1)); /* aligned */
 
 	/* k is now physical location of this object */
 
@@ -1634,7 +1639,7 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 	objectTable[14] = (k >> 16) & 0xff;
 	objectTable[15] = (k >> 24) & 0xff;
 
-	expSect->base = k + imageBase; /* relocate section */
+	expSect->base = k + image_base; /* relocate section */
 
 	/* start with buf=all zero */
 	for (i = 0; i < expSect->length; i++) expSect->data[i] = 0;
@@ -1669,54 +1674,54 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 	expSect->data[27] = (numNames >> 24) & 0xff;
 
 	/* store address of address table */
-	expSect->data[28] = (RVAStart + expSect->base - imageBase) & 0xff;
-	expSect->data[29] = ((RVAStart + expSect->base - imageBase) >> 8) & 0xff;
-	expSect->data[30] = ((RVAStart + expSect->base - imageBase) >> 16) & 0xff;
-	expSect->data[31] = ((RVAStart + expSect->base - imageBase) >> 24) & 0xff;
+	expSect->data[28] = (RVAStart + expSect->base - image_base) & 0xff;
+	expSect->data[29] = ((RVAStart + expSect->base - image_base) >> 8) & 0xff;
+	expSect->data[30] = ((RVAStart + expSect->base - image_base) >> 16) & 0xff;
+	expSect->data[31] = ((RVAStart + expSect->base - image_base) >> 24) & 0xff;
 
 	/* store address of name table */
-	expSect->data[32] = (nameRVAStart + expSect->base - imageBase) & 0xff;
-	expSect->data[33] = ((nameRVAStart + expSect->base - imageBase) >> 8) & 0xff;
-	expSect->data[34] = ((nameRVAStart + expSect->base - imageBase) >> 16) & 0xff;
-	expSect->data[35] = ((nameRVAStart + expSect->base - imageBase) >> 24) & 0xff;
+	expSect->data[32] = (nameRVAStart + expSect->base - image_base) & 0xff;
+	expSect->data[33] = ((nameRVAStart + expSect->base - image_base) >> 8) & 0xff;
+	expSect->data[34] = ((nameRVAStart + expSect->base - image_base) >> 16) & 0xff;
+	expSect->data[35] = ((nameRVAStart + expSect->base - image_base) >> 24) & 0xff;
 
 	/* store address of ordinal table */
-	expSect->data[36] = (ordinalStart + expSect->base - imageBase) & 0xff;
-	expSect->data[37] = ((ordinalStart + expSect->base - imageBase) >> 8) & 0xff;
-	expSect->data[38] = ((ordinalStart + expSect->base - imageBase) >> 16) & 0xff;
-	expSect->data[39] = ((ordinalStart + expSect->base - imageBase) >> 24) & 0xff;
+	expSect->data[36] = (ordinalStart + expSect->base - image_base) & 0xff;
+	expSect->data[37] = ((ordinalStart + expSect->base - image_base) >> 8) & 0xff;
+	expSect->data[38] = ((ordinalStart + expSect->base - image_base) >> 16) & 0xff;
+	expSect->data[39] = ((ordinalStart + expSect->base - image_base) >> 24) & 0xff;
 
 	/* process numbered exports */
 	for (i = 0; i < expcount; i++)
 	{
-		if (expdefs[i].flags & EXP_ORD)
+		if (export_definitions[i].flags & EXP_ORD)
 		{
 			/* get current RVA */
-			k = expSect->data[RVAStart + 4 * (expdefs[i].ordinal - minOrd)];
-			k += expSect->data[RVAStart + 4 * (expdefs[i].ordinal - minOrd) + 1] << 8;
-			k += expSect->data[RVAStart + 4 * (expdefs[i].ordinal - minOrd) + 2] << 16;
-			k += expSect->data[RVAStart + 4 * (expdefs[i].ordinal - minOrd) + 3] << 24;
+			k = expSect->data[RVAStart + 4 * (export_definitions[i].ordinal - minOrd)];
+			k += expSect->data[RVAStart + 4 * (export_definitions[i].ordinal - minOrd) + 1] << 8;
+			k += expSect->data[RVAStart + 4 * (export_definitions[i].ordinal - minOrd) + 2] << 16;
+			k += expSect->data[RVAStart + 4 * (export_definitions[i].ordinal - minOrd) + 3] << 24;
 			if (k) /* error if already used */
 			{
-				printf("Duplicate export ordinal %i\n", expdefs[i].ordinal);
+				printf("Duplicate export ordinal %i\n", export_definitions[i].ordinal);
 				exit(1);
 			}
 			/* get RVA of export entry */
-			k = expdefs[i].pubdef->ofs +
-				seglist[expdefs[i].pubdef->segnum]->base -
-				imageBase;
+			k = export_definitions[i].pubdef->offset +
+				segment_list[export_definitions[i].pubdef->segment]->base -
+				image_base;
 			/* store it */
-			expSect->data[RVAStart + 4 * (expdefs[i].ordinal - minOrd)] = k & 0xff;
-			expSect->data[RVAStart + 4 * (expdefs[i].ordinal - minOrd) + 1] = (k >> 8) & 0xff;
-			expSect->data[RVAStart + 4 * (expdefs[i].ordinal - minOrd) + 2] = (k >> 16) & 0xff;
-			expSect->data[RVAStart + 4 * (expdefs[i].ordinal - minOrd) + 3] = (k >> 24) & 0xff;
+			expSect->data[RVAStart + 4 * (export_definitions[i].ordinal - minOrd)] = k & 0xff;
+			expSect->data[RVAStart + 4 * (export_definitions[i].ordinal - minOrd) + 1] = (k >> 8) & 0xff;
+			expSect->data[RVAStart + 4 * (export_definitions[i].ordinal - minOrd) + 2] = (k >> 16) & 0xff;
+			expSect->data[RVAStart + 4 * (export_definitions[i].ordinal - minOrd) + 3] = (k >> 24) & 0xff;
 		}
 	}
 
 	/* process non-numbered exports */
 	for (i = 0, j = RVAStart; i < expcount; i++)
 	{
-		if (!(expdefs[i].flags & EXP_ORD))
+		if (!(export_definitions[i].flags & EXP_ORD))
 		{
 			do
 			{
@@ -1727,15 +1732,15 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 				if (k) j += 4;
 			} while (k); /* move through table until we find a free spot */
 			/* get RVA of export entry */
-			k = expdefs[i].pubdef->ofs;
-			k += seglist[expdefs[i].pubdef->segnum]->base;
-			k -= imageBase;
+			k = export_definitions[i].pubdef->offset;
+			k += segment_list[export_definitions[i].pubdef->segment]->base;
+			k -= image_base;
 			/* store RVA */
 			expSect->data[j] = k & 0xff;
 			expSect->data[j + 1] = (k >> 8) & 0xff;
 			expSect->data[j + 2] = (k >> 16) & 0xff;
 			expSect->data[j + 3] = (k >> 24) & 0xff;
-			expdefs[i].ordinal = (j - RVAStart) / 4 + minOrd; /* store ordinal */
+			export_definitions[i].ordinal = (j - RVAStart) / 4 + minOrd; /* store ordinal */
 			j += 4;
 		}
 	}
@@ -1746,10 +1751,10 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 		j = 0; /* no entries yet */
 		for (i = 0; i < expcount; i++)
 		{
-			if (expdefs[i].exp_name && expdefs[i].exp_name[0])
+			if (export_definitions[i].exp_name && export_definitions[i].exp_name[0])
 			{
 				/* make entry in name list */
-				nameList[j] = &expdefs[i];
+				nameList[j] = &export_definitions[i];
 				j++;
 			}
 		}
@@ -1778,10 +1783,10 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 			expSect->data[ordinalStart + 1] = ((nameList[i]->ordinal - minOrd) >> 8) & 0xff;
 			ordinalStart += 2;
 			/* store name RVA */
-			expSect->data[nameRVAStart] = (nameSpaceStart + expSect->base - imageBase) & 0xff;
-			expSect->data[nameRVAStart + 1] = ((nameSpaceStart + expSect->base - imageBase) >> 8) & 0xff;
-			expSect->data[nameRVAStart + 2] = ((nameSpaceStart + expSect->base - imageBase) >> 16) & 0xff;
-			expSect->data[nameRVAStart + 3] = ((nameSpaceStart + expSect->base - imageBase) >> 24) & 0xff;
+			expSect->data[nameRVAStart] = (nameSpaceStart + expSect->base - image_base) & 0xff;
+			expSect->data[nameRVAStart + 1] = ((nameSpaceStart + expSect->base - image_base) >> 8) & 0xff;
+			expSect->data[nameRVAStart + 2] = ((nameSpaceStart + expSect->base - image_base) >> 16) & 0xff;
+			expSect->data[nameRVAStart + 3] = ((nameSpaceStart + expSect->base - image_base) >> 24) & 0xff;
 			nameRVAStart += 4;
 			/* store name */
 			for (j = 0; nameList[i]->exp_name[j]; j++, nameSpaceStart++)
@@ -1803,16 +1808,16 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 	{
 		expSect->data[nameSpaceStart + j] = 0;
 		/* store name RVA */
-		expSect->data[12] = (nameSpaceStart + expSect->base - imageBase) & 0xff;
-		expSect->data[13] = ((nameSpaceStart + expSect->base - imageBase) >> 8) & 0xff;
-		expSect->data[14] = ((nameSpaceStart + expSect->base - imageBase) >> 16) & 0xff;
-		expSect->data[15] = ((nameSpaceStart + expSect->base - imageBase) >> 24) & 0xff;
+		expSect->data[12] = (nameSpaceStart + expSect->base - image_base) & 0xff;
+		expSect->data[13] = ((nameSpaceStart + expSect->base - image_base) >> 8) & 0xff;
+		expSect->data[14] = ((nameSpaceStart + expSect->base - image_base) >> 16) & 0xff;
+		expSect->data[15] = ((nameSpaceStart + expSect->base - image_base) >> 24) & 0xff;
 	}
 
-	expSect->datmask = (PUCHAR)check_malloc((expSect->length + 7) / 8);
+	expSect->data_mask = (PUCHAR)check_malloc((expSect->length + 7) / 8);
 	for (i = 0; i < (expSect->length + 7) / 8; i++)
 	{
-		expSect->datmask[i] = 0xff;
+		expSect->data_mask[i] = 0xff;
 	}
 
 	return;
@@ -1829,7 +1834,7 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 	UINT nameSize, dataSize;
 	UINT tableSize, dataListSize;
 	UINT namePos, dataPos, tablePos, dataListPos;
-	UINT curTypePos, curNamePos, curLangPos;
+	UINT curTypePos, curNamePos = 0, curLangPos = 0;
 	char* curTypeName, * curName;
 	int curTypeId, curId;
 
@@ -1846,8 +1851,8 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 	k += objectTable[-PE_OBJECTENTRY_SIZE + 18] << 16;
 	k += objectTable[-PE_OBJECTENTRY_SIZE + 19] << 24;
 
-	k += fileAlign - 1;
-	k &= (0xffffffff - (fileAlign - 1)); /* aligned */
+	k += file_align - 1;
+	k &= (0xffffffff - (file_align - 1)); /* aligned */
 
 	/* k is now physical location of this object */
 
@@ -1872,7 +1877,7 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 	objectTable[14] = (k >> 16) & 0xff;
 	objectTable[15] = (k >> 24) & 0xff;
 
-	ressect = outlist[sectNum];
+	ressect = out_list[sectNum];
 	ressect->base = k; /* get base RVA of section */
 
 	/* sort into type-id order */
@@ -1893,9 +1898,9 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 						if (wstricmp(curres.name, resource[j].name) > 0) break;
 						if (wstricmp(curres.name, resource[j].name) == 0)
 						{
-							if (resource[j].languageid > curres.languageid)
+							if (resource[j].language_id > curres.language_id)
 								break;
-							if (resource[j].languageid == curres.languageid)
+							if (resource[j].language_id == curres.language_id)
 							{
 								printf("Error duplicate resource ID\n");
 								exit(1);
@@ -1909,9 +1914,9 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 							if (curres.id > resource[j].id) break;
 							if (curres.id == resource[j].id)
 							{
-								if (resource[j].languageid > curres.languageid)
+								if (resource[j].language_id > curres.language_id)
 									break;
-								if (resource[j].languageid == curres.languageid)
+								if (resource[j].language_id == curres.language_id)
 								{
 									printf("Error duplicate resource ID\n");
 									exit(1);
@@ -1934,9 +1939,9 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 							if (wstricmp(curres.name, resource[j].name) > 0) break;
 							if (wstricmp(curres.name, resource[j].name) == 0)
 							{
-								if (resource[j].languageid > curres.languageid)
+								if (resource[j].language_id > curres.language_id)
 									break;
-								if (resource[j].languageid == curres.languageid)
+								if (resource[j].language_id == curres.language_id)
 								{
 									printf("Error duplicate resource ID\n");
 									exit(1);
@@ -1950,9 +1955,9 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 								if (curres.id > resource[j].id) break;
 								if (curres.id == resource[j].id)
 								{
-									if (resource[j].languageid > curres.languageid)
+									if (resource[j].language_id > curres.language_id)
 										break;
-									if (resource[j].languageid == curres.languageid)
+									if (resource[j].language_id == curres.language_id)
 									{
 										printf("Error duplicate resource ID\n");
 										exit(1);
@@ -2041,7 +2046,7 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 
 	ressect->data = (PUCHAR)check_malloc(ressect->length);
 
-	ressect->datmask = (PUCHAR)check_malloc((ressect->length + 7) / 8);
+	ressect->data_mask = (PUCHAR)check_malloc((ressect->length + 7) / 8);
 
 	/* empty section to start with */
 	for (i = 0; i < ressect->length; i++)
@@ -2215,10 +2220,10 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 			tablePos += PE_RESDIR_SIZE + numids * PE_RESENTRY_SIZE;
 			curNamePos += PE_RESENTRY_SIZE;
 		}
-		ressect->data[curLangPos] = resource[i].languageid & 0xff;
-		ressect->data[curLangPos + 1] = (resource[i].languageid >> 8) & 0xff;
-		ressect->data[curLangPos + 2] = (resource[i].languageid >> 16) & 0xff;
-		ressect->data[curLangPos + 3] = (resource[i].languageid >> 24) & 0xff;
+		ressect->data[curLangPos] = resource[i].language_id & 0xff;
+		ressect->data[curLangPos + 1] = (resource[i].language_id >> 8) & 0xff;
+		ressect->data[curLangPos + 2] = (resource[i].language_id >> 16) & 0xff;
+		ressect->data[curLangPos + 3] = (resource[i].language_id >> 24) & 0xff;
 
 		ressect->data[curLangPos + 4] = (dataListPos) & 0xff;
 		ressect->data[curLangPos + 5] = ((dataListPos) >> 8) & 0xff;
@@ -2243,15 +2248,15 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 
 	/* mark whole section as required output */
 	for (i = 0; i < (ressect->length + 7) / 8; i++)
-		ressect->datmask[i] = 0xff;
+		ressect->data_mask[i] = 0xff;
 
 	/* update object table */
-	ressect->base += imageBase;
+	ressect->base += image_base;
 
 	k = ressect->length;
-	k += objectAlign - 1;
-	k &= (0xffffffff - (objectAlign - 1));
-	ressect->virtualSize = k;
+	k += object_align - 1;
+	k &= (0xffffffff - (object_align - 1));
+	ressect->virtual_size = k;
 	objectTable[8] = k & 0xff; /* store virtual size (in memory) of segment */
 	objectTable[9] = (k >> 8) & 0xff;
 	objectTable[10] = (k >> 16) & 0xff;
@@ -2277,17 +2282,17 @@ static void get_stub(PUCHAR* pstubData, UINT* pstubSize)
 	UINT relocStart;
 	int i;
 
-	if (stubName)
+	if (stub_name)
 	{
-		f = fopen(stubName, "rb");
+		f = fopen(stub_name, "rb");
 		if (!f)
 		{
-			printf("Unable to open stub file %s\n", stubName);
+			printf("Unable to open stub file %s\n", stub_name);
 			exit(1);
 		}
 		if (fread(headbuf, 1, 0x1c, f) != 0x1c) /* try and read 0x1c bytes */
 		{
-			printf("Error reading from file %s\n", stubName);
+			printf("Error reading from file %s\n", stub_name);
 			exit(1);
 		}
 		if ((headbuf[0] != 0x4d) || (headbuf[1] != 0x5a))
@@ -2315,7 +2320,7 @@ static void get_stub(PUCHAR* pstubData, UINT* pstubSize)
 		fseek(f, relocStart, SEEK_SET);
 		if (fread(buf + 0x40, 1, relocSize, f) != relocSize)
 		{
-			printf("Error reading from file %s\n", stubName);
+			printf("Error reading from file %s\n", stub_name);
 			exit(1);
 		}
 
@@ -2334,7 +2339,7 @@ static void get_stub(PUCHAR* pstubData, UINT* pstubSize)
 		/* load data into correct position */
 		if (fread(buf + headerSize, 1, imageSize, f) != imageSize)
 		{
-			printf("Error reading from file %s\n", stubName);
+			printf("Error reading from file %s\n", stub_name);
 			exit(1);
 		}
 		/* relocations start at 0x40 */
@@ -2380,7 +2385,7 @@ void output_win32_file(PCHAR outname)
 
 	printf("Generating PE file %s\n", outname);
 
-	errcount = 0;
+	error_count = 0;
 
 	/* allocate section entries for imports, exports and relocs if required */
 	if (impsreq)
@@ -2426,10 +2431,10 @@ void output_win32_file(PCHAR outname)
 	headerStart &= 0xfffffff8; /* align PE header to 8 byte boundary */
 
 	headerSize = PE_HEADBUF_SIZE + outcount * PE_OBJECTENTRY_SIZE + stubSize;
-	headerVirtSize = headerSize + (objectAlign - 1);
-	headerVirtSize &= (0xffffffff - (objectAlign - 1));
-	headerSize += (fileAlign - 1);
-	headerSize &= (0xffffffff - (fileAlign - 1));
+	headerVirtSize = headerSize + (object_align - 1);
+	headerVirtSize &= (0xffffffff - (object_align - 1));
+	headerSize += (file_align - 1);
+	headerSize &= (0xffffffff - (file_align - 1));
 
 
 	headbuf = check_malloc(headerSize);
@@ -2464,7 +2469,7 @@ void output_win32_file(PCHAR outname)
 	headbuf[headerStart + PE_HDRSIZE + 1] = (PE_OPTIONAL_HEADER_SIZE >> 8) & 0xff;
 
 	i = PE_FILE_EXECUTABLE | PE_FILE_32BIT;                   /* get flags */
-	if (buildDll)
+	if (build_dll)
 	{
 		i |= PE_FILE_LIBRARY;                /* if DLL, flag it */
 	}
@@ -2474,29 +2479,29 @@ void output_win32_file(PCHAR outname)
 	headbuf[headerStart + PE_MAGIC] = PE_MAGICNUM & 0xff; /* store magic number */
 	headbuf[headerStart + PE_MAGIC + 1] = (PE_MAGICNUM >> 8) & 0xff;
 
-	headbuf[headerStart + PE_IMAGEBASE] = imageBase & 0xff; /* store image base */
-	headbuf[headerStart + PE_IMAGEBASE + 1] = (imageBase >> 8) & 0xff;
-	headbuf[headerStart + PE_IMAGEBASE + 2] = (imageBase >> 16) & 0xff;
-	headbuf[headerStart + PE_IMAGEBASE + 3] = (imageBase >> 24) & 0xff;
+	headbuf[headerStart + PE_IMAGEBASE] = image_base & 0xff; /* store image base */
+	headbuf[headerStart + PE_IMAGEBASE + 1] = (image_base >> 8) & 0xff;
+	headbuf[headerStart + PE_IMAGEBASE + 2] = (image_base >> 16) & 0xff;
+	headbuf[headerStart + PE_IMAGEBASE + 3] = (image_base >> 24) & 0xff;
 
-	headbuf[headerStart + PE_FILEALIGN] = fileAlign & 0xff; /* store image base */
-	headbuf[headerStart + PE_FILEALIGN + 1] = (fileAlign >> 8) & 0xff;
-	headbuf[headerStart + PE_FILEALIGN + 2] = (fileAlign >> 16) & 0xff;
-	headbuf[headerStart + PE_FILEALIGN + 3] = (fileAlign >> 24) & 0xff;
+	headbuf[headerStart + PE_FILEALIGN] = file_align & 0xff; /* store image base */
+	headbuf[headerStart + PE_FILEALIGN + 1] = (file_align >> 8) & 0xff;
+	headbuf[headerStart + PE_FILEALIGN + 2] = (file_align >> 16) & 0xff;
+	headbuf[headerStart + PE_FILEALIGN + 3] = (file_align >> 24) & 0xff;
 
-	headbuf[headerStart + PE_OBJECTALIGN] = objectAlign & 0xff; /* store image base */
-	headbuf[headerStart + PE_OBJECTALIGN + 1] = (objectAlign >> 8) & 0xff;
-	headbuf[headerStart + PE_OBJECTALIGN + 2] = (objectAlign >> 16) & 0xff;
-	headbuf[headerStart + PE_OBJECTALIGN + 3] = (objectAlign >> 24) & 0xff;
+	headbuf[headerStart + PE_OBJECTALIGN] = object_align & 0xff; /* store image base */
+	headbuf[headerStart + PE_OBJECTALIGN + 1] = (object_align >> 8) & 0xff;
+	headbuf[headerStart + PE_OBJECTALIGN + 2] = (object_align >> 16) & 0xff;
+	headbuf[headerStart + PE_OBJECTALIGN + 3] = (object_align >> 24) & 0xff;
 
-	headbuf[headerStart + PE_OSMAJOR] = osMajor;
-	headbuf[headerStart + PE_OSMINOR] = osMinor;
+	headbuf[headerStart + PE_OSMAJOR] = os_major;
+	headbuf[headerStart + PE_OSMINOR] = os_minor;
 
-	headbuf[headerStart + PE_SUBSYSMAJOR] = subsysMajor;
-	headbuf[headerStart + PE_SUBSYSMINOR] = subsysMinor;
+	headbuf[headerStart + PE_SUBSYSMAJOR] = sub_system_major;
+	headbuf[headerStart + PE_SUBSYSMINOR] = sub_system_minor;
 
-	headbuf[headerStart + PE_SUBSYSTEM] = subSystem & 0xff;
-	headbuf[headerStart + PE_SUBSYSTEM + 1] = (subSystem >> 8) & 0xff;
+	headbuf[headerStart + PE_SUBSYSTEM] = sub_system & 0xff;
+	headbuf[headerStart + PE_SUBSYSTEM + 1] = (sub_system >> 8) & 0xff;
 
 	headbuf[headerStart + PE_NUMRVAS] = PE_NUM_VAS & 0xff;
 	headbuf[headerStart + PE_NUMRVAS + 1] = (PE_NUM_VAS >> 8) & 0xff;
@@ -2506,25 +2511,25 @@ void output_win32_file(PCHAR outname)
 	headbuf[headerStart + PE_HEADERSIZE + 2] = (headerSize >> 16) & 0xff;
 	headbuf[headerStart + PE_HEADERSIZE + 3] = (headerSize >> 24) & 0xff;
 
-	headbuf[headerStart + PE_HEAPSIZE] = heapSize & 0xff;
-	headbuf[headerStart + PE_HEAPSIZE + 1] = (heapSize >> 8) & 0xff;
-	headbuf[headerStart + PE_HEAPSIZE + 2] = (heapSize >> 16) & 0xff;
-	headbuf[headerStart + PE_HEAPSIZE + 3] = (heapSize >> 24) & 0xff;
+	headbuf[headerStart + PE_HEAPSIZE] = heap_size & 0xff;
+	headbuf[headerStart + PE_HEAPSIZE + 1] = (heap_size >> 8) & 0xff;
+	headbuf[headerStart + PE_HEAPSIZE + 2] = (heap_size >> 16) & 0xff;
+	headbuf[headerStart + PE_HEAPSIZE + 3] = (heap_size >> 24) & 0xff;
 
-	headbuf[headerStart + PE_HEAPCOMMSIZE] = heapCommitSize & 0xff;
-	headbuf[headerStart + PE_HEAPCOMMSIZE + 1] = (heapCommitSize >> 8) & 0xff;
-	headbuf[headerStart + PE_HEAPCOMMSIZE + 2] = (heapCommitSize >> 16) & 0xff;
-	headbuf[headerStart + PE_HEAPCOMMSIZE + 3] = (heapCommitSize >> 24) & 0xff;
+	headbuf[headerStart + PE_HEAPCOMMSIZE] = heap_commit_size & 0xff;
+	headbuf[headerStart + PE_HEAPCOMMSIZE + 1] = (heap_commit_size >> 8) & 0xff;
+	headbuf[headerStart + PE_HEAPCOMMSIZE + 2] = (heap_commit_size >> 16) & 0xff;
+	headbuf[headerStart + PE_HEAPCOMMSIZE + 3] = (heap_commit_size >> 24) & 0xff;
 
-	headbuf[headerStart + PE_STACKSIZE] = stackSize & 0xff;
-	headbuf[headerStart + PE_STACKSIZE + 1] = (stackSize >> 8) & 0xff;
-	headbuf[headerStart + PE_STACKSIZE + 2] = (stackSize >> 16) & 0xff;
-	headbuf[headerStart + PE_STACKSIZE + 3] = (stackSize >> 24) & 0xff;
+	headbuf[headerStart + PE_STACKSIZE] = stack_size & 0xff;
+	headbuf[headerStart + PE_STACKSIZE + 1] = (stack_size >> 8) & 0xff;
+	headbuf[headerStart + PE_STACKSIZE + 2] = (stack_size >> 16) & 0xff;
+	headbuf[headerStart + PE_STACKSIZE + 3] = (stack_size >> 24) & 0xff;
 
-	headbuf[headerStart + PE_STACKCOMMSIZE] = stackCommitSize & 0xff;
-	headbuf[headerStart + PE_STACKCOMMSIZE + 1] = (stackCommitSize >> 8) & 0xff;
-	headbuf[headerStart + PE_STACKCOMMSIZE + 2] = (stackCommitSize >> 16) & 0xff;
-	headbuf[headerStart + PE_STACKCOMMSIZE + 3] = (stackCommitSize >> 24) & 0xff;
+	headbuf[headerStart + PE_STACKCOMMSIZE] = stack_commit_size & 0xff;
+	headbuf[headerStart + PE_STACKCOMMSIZE + 1] = (stack_commit_size >> 8) & 0xff;
+	headbuf[headerStart + PE_STACKCOMMSIZE + 2] = (stack_commit_size >> 16) & 0xff;
+	headbuf[headerStart + PE_STACKCOMMSIZE + 3] = (stack_commit_size >> 24) & 0xff;
 
 
 	/* shift segment start addresses up into place and build section headers */
@@ -2533,23 +2538,23 @@ void output_win32_file(PCHAR outname)
 
 	for (i = 0; i < outcount; i++, j += PE_OBJECTENTRY_SIZE)
 	{
-		nameIndex = outlist[i]->nameindex;
+		nameIndex = out_list[i]->name_index;
 		if (nameIndex >= 0)
 		{
-			for (k = 0; (k < strlen(namelist[nameIndex])) && (k < 8); k++)
+			for (k = 0; (k < strlen(name_list[nameIndex])) && (k < 8); k++)
 			{
-				headbuf[j + k] = namelist[nameIndex][k];
+				headbuf[j + k] = name_list[nameIndex][k];
 			}
 		}
-		k = outlist[i]->virtualSize; /* get virtual size */
+		k = out_list[i]->virtual_size; /* get virtual size */
 		headbuf[j + 8] = k & 0xff; /* store virtual size (in memory) of segment */
 		headbuf[j + 9] = (k >> 8) & 0xff;
 		headbuf[j + 10] = (k >> 16) & 0xff;
 		headbuf[j + 11] = (k >> 24) & 0xff;
 
-		if (!padsegments) /* if not padding segments, reduce space consumption */
+		if (!pad_segments) /* if not padding segments, reduce space consumption */
 		{
-			for (k = outlist[i]->length - 1; (k >= 0) && !get_n_bit(outlist[i]->datmask, k); k--);
+			for (k = out_list[i]->length - 1; (k >= 0) && !get_n_bit(out_list[i]->data_mask, k); k--);
 			k++; /* k=initialised length */
 		}
 		headbuf[j + 16] = (k) & 0xff; /* store initialised data size */
@@ -2562,18 +2567,18 @@ void output_win32_file(PCHAR outname)
 		headbuf[j + 22] = (sectionStart >> 16) & 0xff;
 		headbuf[j + 23] = (sectionStart >> 24) & 0xff;
 
-		k += fileAlign - 1;
-		k &= (0xffffffff - (fileAlign - 1)); /* aligned initialised length */
+		k += file_align - 1;
+		k &= (0xffffffff - (file_align - 1)); /* aligned initialised length */
 
 		sectionStart += k; /* update section start address for next section */
 
-		outlist[i]->base += headerVirtSize + imageBase;
-		headbuf[j + 12] = (outlist[i]->base - imageBase) & 0xff;
-		headbuf[j + 13] = ((outlist[i]->base - imageBase) >> 8) & 0xff;
-		headbuf[j + 14] = ((outlist[i]->base - imageBase) >> 16) & 0xff;
-		headbuf[j + 15] = ((outlist[i]->base - imageBase) >> 24) & 0xff;
+		out_list[i]->base += headerVirtSize + image_base;
+		headbuf[j + 12] = (out_list[i]->base - image_base) & 0xff;
+		headbuf[j + 13] = ((out_list[i]->base - image_base) >> 8) & 0xff;
+		headbuf[j + 14] = ((out_list[i]->base - image_base) >> 16) & 0xff;
+		headbuf[j + 15] = ((out_list[i]->base - image_base) >> 24) & 0xff;
 
-		k = (outlist[i]->winFlags ^ WINF_NEG_FLAGS) & WINF_IMAGE_FLAGS; /* get characteristice for section */
+		k = (out_list[i]->win_flags ^ WINF_NEG_FLAGS) & WINF_IMAGE_FLAGS; /* get characteristice for section */
 		headbuf[j + 36] = (k) & 0xff; /* store characteristics */
 		headbuf[j + 37] = (k >> 8) & 0xff;
 		headbuf[j + 38] = (k >> 16) & 0xff;
@@ -2590,31 +2595,31 @@ void output_win32_file(PCHAR outname)
 	build_pe_relocs(relocSectNum, headbuf + headerStart + PE_HEADBUF_SIZE);
 	build_pe_resources(resourceSectNum, headbuf + headerStart + PE_HEADBUF_SIZE);
 
-	if (errcount)
+	if (error_count)
 	{
 		exit(1);
 	}
 
 	/* get start address */
-	if (gotstart)
+	if (got_start_address)
 	{
-		get_fixup_target(outname ,&startaddr, &startaddr.segnum, &startaddr.ofs, TRUE);
-		if (errcount)
+		get_fixup_target(outname, &start_address, &start_address.segment, &start_address.offset, TRUE);
+		if (error_count)
 		{
 			printf("Invalid start address record\n");
 			exit(1);
 		}
-		i = startaddr.ofs;
-		if (startaddr.segnum >= 0)
+		i = start_address.offset;
+		if (start_address.segment >= 0)
 		{
-			i += seglist[startaddr.segnum]->base;
+			i += segment_list[start_address.segment]->base;
 		}
-		i -= imageBase; /* RVA */
+		i -= image_base; /* RVA */
 		headbuf[headerStart + PE_ENTRYPOINT] = i & 0xff;
 		headbuf[headerStart + PE_ENTRYPOINT + 1] = (i >> 8) & 0xff;
 		headbuf[headerStart + PE_ENTRYPOINT + 2] = (i >> 16) & 0xff;
 		headbuf[headerStart + PE_ENTRYPOINT + 3] = (i >> 24) & 0xff;
-		if (buildDll) /* if library */
+		if (build_dll) /* if library */
 		{
 			/* flag that entry point should always be called */
 			headbuf[headerStart + PE_DLLFLAGS] = 0xf;
@@ -2628,49 +2633,49 @@ void output_win32_file(PCHAR outname)
 
 	if (importSectNum >= 0) /* if imports, add section entry */
 	{
-		headbuf[headerStart + PE_IMPORTRVA] = (outlist[importSectNum]->base - imageBase) & 0xff;
-		headbuf[headerStart + PE_IMPORTRVA + 1] = ((outlist[importSectNum]->base - imageBase) >> 8) & 0xff;
-		headbuf[headerStart + PE_IMPORTRVA + 2] = ((outlist[importSectNum]->base - imageBase) >> 16) & 0xff;
-		headbuf[headerStart + PE_IMPORTRVA + 3] = ((outlist[importSectNum]->base - imageBase) >> 24) & 0xff;
-		headbuf[headerStart + PE_IMPORTSIZE] = (outlist[importSectNum]->length) & 0xff;
-		headbuf[headerStart + PE_IMPORTSIZE + 1] = (outlist[importSectNum]->length >> 8) & 0xff;
-		headbuf[headerStart + PE_IMPORTSIZE + 2] = (outlist[importSectNum]->length >> 16) & 0xff;
-		headbuf[headerStart + PE_IMPORTSIZE + 3] = (outlist[importSectNum]->length >> 24) & 0xff;
+		headbuf[headerStart + PE_IMPORTRVA] = (out_list[importSectNum]->base - image_base) & 0xff;
+		headbuf[headerStart + PE_IMPORTRVA + 1] = ((out_list[importSectNum]->base - image_base) >> 8) & 0xff;
+		headbuf[headerStart + PE_IMPORTRVA + 2] = ((out_list[importSectNum]->base - image_base) >> 16) & 0xff;
+		headbuf[headerStart + PE_IMPORTRVA + 3] = ((out_list[importSectNum]->base - image_base) >> 24) & 0xff;
+		headbuf[headerStart + PE_IMPORTSIZE] = (out_list[importSectNum]->length) & 0xff;
+		headbuf[headerStart + PE_IMPORTSIZE + 1] = (out_list[importSectNum]->length >> 8) & 0xff;
+		headbuf[headerStart + PE_IMPORTSIZE + 2] = (out_list[importSectNum]->length >> 16) & 0xff;
+		headbuf[headerStart + PE_IMPORTSIZE + 3] = (out_list[importSectNum]->length >> 24) & 0xff;
 	}
 	if (relocSectNum >= 0) /* if relocs, add section entry */
 	{
-		headbuf[headerStart + PE_FIXUPRVA] = (outlist[relocSectNum]->base - imageBase) & 0xff;
-		headbuf[headerStart + PE_FIXUPRVA + 1] = ((outlist[relocSectNum]->base - imageBase) >> 8) & 0xff;
-		headbuf[headerStart + PE_FIXUPRVA + 2] = ((outlist[relocSectNum]->base - imageBase) >> 16) & 0xff;
-		headbuf[headerStart + PE_FIXUPRVA + 3] = ((outlist[relocSectNum]->base - imageBase) >> 24) & 0xff;
-		headbuf[headerStart + PE_FIXUPSIZE] = (outlist[relocSectNum]->length) & 0xff;
-		headbuf[headerStart + PE_FIXUPSIZE + 1] = (outlist[relocSectNum]->length >> 8) & 0xff;
-		headbuf[headerStart + PE_FIXUPSIZE + 2] = (outlist[relocSectNum]->length >> 16) & 0xff;
-		headbuf[headerStart + PE_FIXUPSIZE + 3] = (outlist[relocSectNum]->length >> 24) & 0xff;
+		headbuf[headerStart + PE_FIXUPRVA] = (out_list[relocSectNum]->base - image_base) & 0xff;
+		headbuf[headerStart + PE_FIXUPRVA + 1] = ((out_list[relocSectNum]->base - image_base) >> 8) & 0xff;
+		headbuf[headerStart + PE_FIXUPRVA + 2] = ((out_list[relocSectNum]->base - image_base) >> 16) & 0xff;
+		headbuf[headerStart + PE_FIXUPRVA + 3] = ((out_list[relocSectNum]->base - image_base) >> 24) & 0xff;
+		headbuf[headerStart + PE_FIXUPSIZE] = (out_list[relocSectNum]->length) & 0xff;
+		headbuf[headerStart + PE_FIXUPSIZE + 1] = (out_list[relocSectNum]->length >> 8) & 0xff;
+		headbuf[headerStart + PE_FIXUPSIZE + 2] = (out_list[relocSectNum]->length >> 16) & 0xff;
+		headbuf[headerStart + PE_FIXUPSIZE + 3] = (out_list[relocSectNum]->length >> 24) & 0xff;
 	}
 
 	if (exportSectNum >= 0) /* if relocs, add section entry */
 	{
-		headbuf[headerStart + PE_EXPORTRVA] = (outlist[exportSectNum]->base - imageBase) & 0xff;
-		headbuf[headerStart + PE_EXPORTRVA + 1] = ((outlist[exportSectNum]->base - imageBase) >> 8) & 0xff;
-		headbuf[headerStart + PE_EXPORTRVA + 2] = ((outlist[exportSectNum]->base - imageBase) >> 16) & 0xff;
-		headbuf[headerStart + PE_EXPORTRVA + 3] = ((outlist[exportSectNum]->base - imageBase) >> 24) & 0xff;
-		headbuf[headerStart + PE_EXPORTSIZE] = (outlist[exportSectNum]->length) & 0xff;
-		headbuf[headerStart + PE_EXPORTSIZE + 1] = (outlist[exportSectNum]->length >> 8) & 0xff;
-		headbuf[headerStart + PE_EXPORTSIZE + 2] = (outlist[exportSectNum]->length >> 16) & 0xff;
-		headbuf[headerStart + PE_EXPORTSIZE + 3] = (outlist[exportSectNum]->length >> 24) & 0xff;
+		headbuf[headerStart + PE_EXPORTRVA] = (out_list[exportSectNum]->base - image_base) & 0xff;
+		headbuf[headerStart + PE_EXPORTRVA + 1] = ((out_list[exportSectNum]->base - image_base) >> 8) & 0xff;
+		headbuf[headerStart + PE_EXPORTRVA + 2] = ((out_list[exportSectNum]->base - image_base) >> 16) & 0xff;
+		headbuf[headerStart + PE_EXPORTRVA + 3] = ((out_list[exportSectNum]->base - image_base) >> 24) & 0xff;
+		headbuf[headerStart + PE_EXPORTSIZE] = (out_list[exportSectNum]->length) & 0xff;
+		headbuf[headerStart + PE_EXPORTSIZE + 1] = (out_list[exportSectNum]->length >> 8) & 0xff;
+		headbuf[headerStart + PE_EXPORTSIZE + 2] = (out_list[exportSectNum]->length >> 16) & 0xff;
+		headbuf[headerStart + PE_EXPORTSIZE + 3] = (out_list[exportSectNum]->length >> 24) & 0xff;
 	}
 
 	if (resourceSectNum >= 0) /* if relocs, add section entry */
 	{
-		headbuf[headerStart + PE_RESOURCERVA] = (outlist[resourceSectNum]->base - imageBase) & 0xff;
-		headbuf[headerStart + PE_RESOURCERVA + 1] = ((outlist[resourceSectNum]->base - imageBase) >> 8) & 0xff;
-		headbuf[headerStart + PE_RESOURCERVA + 2] = ((outlist[resourceSectNum]->base - imageBase) >> 16) & 0xff;
-		headbuf[headerStart + PE_RESOURCERVA + 3] = ((outlist[resourceSectNum]->base - imageBase) >> 24) & 0xff;
-		headbuf[headerStart + PE_RESOURCESIZE] = (outlist[resourceSectNum]->length) & 0xff;
-		headbuf[headerStart + PE_RESOURCESIZE + 1] = (outlist[resourceSectNum]->length >> 8) & 0xff;
-		headbuf[headerStart + PE_RESOURCESIZE + 2] = (outlist[resourceSectNum]->length >> 16) & 0xff;
-		headbuf[headerStart + PE_RESOURCESIZE + 3] = (outlist[resourceSectNum]->length >> 24) & 0xff;
+		headbuf[headerStart + PE_RESOURCERVA] = (out_list[resourceSectNum]->base - image_base) & 0xff;
+		headbuf[headerStart + PE_RESOURCERVA + 1] = ((out_list[resourceSectNum]->base - image_base) >> 8) & 0xff;
+		headbuf[headerStart + PE_RESOURCERVA + 2] = ((out_list[resourceSectNum]->base - image_base) >> 16) & 0xff;
+		headbuf[headerStart + PE_RESOURCERVA + 3] = ((out_list[resourceSectNum]->base - image_base) >> 24) & 0xff;
+		headbuf[headerStart + PE_RESOURCESIZE] = (out_list[resourceSectNum]->length) & 0xff;
+		headbuf[headerStart + PE_RESOURCESIZE + 1] = (out_list[resourceSectNum]->length >> 8) & 0xff;
+		headbuf[headerStart + PE_RESOURCESIZE + 2] = (out_list[resourceSectNum]->length >> 16) & 0xff;
+		headbuf[headerStart + PE_RESOURCESIZE + 3] = (out_list[resourceSectNum]->length >> 24) & 0xff;
 	}
 
 	j = headerStart + PE_HEADBUF_SIZE + (outcount - 1) * PE_OBJECTENTRY_SIZE;
@@ -2723,7 +2728,7 @@ void output_win32_file(PCHAR outname)
 		}
 	}
 
-	if (errcount != 0)
+	if (error_count != 0)
 	{
 		exit(1);
 	}
@@ -2740,27 +2745,27 @@ void output_win32_file(PCHAR outname)
 		fputc(headbuf[i], outfile);
 	}
 
-	started = lastout = imageBase + headerVirtSize;
+	started = lastout = image_base + headerVirtSize;
 
 	for (i = 0; i < outcount; i++)
 	{
-		if (outlist[i] && ((outlist[i]->attr & SEG_ALIGN) != SEG_ABS))
+		if (out_list[i] && ((out_list[i]->attributes & SEG_ALIGN) != SEG_ABS))
 		{
 			/* ensure section is aligned to file-Align */
-			while (ftell(outfile) & (fileAlign - 1))
+			while (ftell(outfile) & (file_align - 1))
 			{
 				fputc(0, outfile);
 			}
-			if (started > outlist[i]->base)
+			if (started > out_list[i]->base)
 			{
 				printf("Segment overlap\n");
-				printf("Next addr=%08X,base=%08X\n", started, outlist[i]->base);
+				printf("Next addr=%08X,base=%08X\n", started, out_list[i]->base);
 				fclose(outfile);
 				exit(1);
 			}
-			if (padsegments)
+			if (pad_segments)
 			{
-				while (started < outlist[i]->base)
+				while (started < out_list[i]->base)
 				{
 					fputc(0, outfile);
 					started++;
@@ -2768,27 +2773,27 @@ void output_win32_file(PCHAR outname)
 			}
 			else
 			{
-				started = outlist[i]->base;
+				started = out_list[i]->base;
 			}
-			for (j = 0; j < outlist[i]->length; j++)
+			for (j = 0; j < out_list[i]->length; j++)
 			{
-				if (get_n_bit(outlist[i]->datmask, j))
+				if (get_n_bit(out_list[i]->data_mask, j))
 				{
 					for (; lastout < started; lastout++)
 					{
 						fputc(0, outfile);
 					}
-					fputc(outlist[i]->data[j], outfile);
+					fputc(out_list[i]->data[j], outfile);
 					lastout = started + 1;
 				}
-				else if (padsegments)
+				else if (pad_segments)
 				{
 					fputc(0, outfile);
 					lastout = started + 1;
 				}
 				started++;
 			}
-			started = lastout = outlist[i]->base + outlist[i]->virtualSize;
+			started = lastout = out_list[i]->base + out_list[i]->virtual_size;
 		}
 	}
 

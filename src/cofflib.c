@@ -14,49 +14,49 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 	PSORTENTRY symlist;
 	int x;
 
-	libfiles = check_realloc(libfiles, (libcount + 1) * sizeof(LIBFILE));
-	p = &libfiles[libcount];
-	p->filename = check_malloc(strlen(libname) + 1);
-	strcpy(p->filename, libname);
+	library_files = check_realloc(library_files, (libcount + 1) * sizeof(LIBFILE));
+	p = &library_files[libcount];
+	p->file_name = check_malloc(strlen(libname) + 1);
+	strcpy(p->file_name, libname);
 	startPoint = ftell(libfile);
 
-	if (fread(buf, 1, 8, libfile) != 8)
+	if (fread(buffer, 1, 8, libfile) != 8)
 	{
 		printf("Error reading from file\n");
 		exit(1);
 	}
-	buf[8] = 0;
+	buffer[8] = 0;
 	/* complain if file header is wrong */
-	if (strcmp(buf, "!<arch>\n"))
+	if (strcmp(buffer, "!<arch>\n"))
 	{
 		printf("Invalid library file format - bad file header\n");
-		printf("\"%s\"\n", buf);
+		printf("\"%s\"\n", buffer);
 
 		exit(1);
 	}
 	/* read archive member header */
-	if (fread(buf, 1, 60, libfile) != 60)
+	if (fread(buffer, 1, 60, libfile) != 60)
 	{
 		printf("Error reading from file\n");
 		exit(1);
 	}
-	if ((buf[58] != 0x60) || (buf[59] != '\n'))
+	if ((buffer[58] != 0x60) || (buffer[59] != '\n'))
 	{
 		printf("Invalid library file format - bad member signature\n");
 		exit(1);
 	}
-	buf[16] = 0;
+	buffer[16] = 0;
 	/* check name of first linker member */
-	if (strcmp(buf, "/               ")) /* 15 spaces */
+	if (strcmp(buffer, "/               ")) /* 15 spaces */
 	{
 		printf("Invalid library file format - bad member name\n");
 		exit(1);
 	}
-	buf[58] = 0;
+	buffer[58] = 0;
 
 	/* strip trailing spaces from size */
-	endptr = buf + 57;
-	while ((endptr > (buf + 48)) && isspace(*endptr))
+	endptr = buffer + 57;
+	while ((endptr > (buffer + 48)) && isspace(*endptr))
 	{
 		*endptr = 0;
 		endptr--;
@@ -64,7 +64,7 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 
 	/* get size */
 	errno = 0;
-	memberSize = strtoul(buf + 48, (PPCHAR)&endptr, 10);
+	memberSize = strtoul(buffer + 48, (PPCHAR)&endptr, 10);
 	if (errno || (*endptr))
 	{
 		printf("Invalid library file format - bad member size\n");
@@ -81,12 +81,12 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 	}
 	else
 	{
-		if (fread(buf, 1, 4, libfile) != 4)
+		if (fread(buffer, 1, 4, libfile) != 4)
 		{
 			printf("Error reading from file\n");
 			exit(1);
 		}
-		numsyms = buf[3] + (buf[2] << 8) + (buf[1] << 16) + (buf[0] << 24);
+		numsyms = buffer[3] + (buffer[2] << 8) + (buffer[1] << 16) + (buffer[0] << 24);
 	}
 	printf("%u symbols\n", numsyms);
 	modbuf = (PUCHAR)check_malloc(numsyms * 4);
@@ -136,14 +136,14 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 	{
 		qsort(symlist, numsyms, sizeof(SORTENTRY), sort_compare);
 		p->symbols = symlist;
-		p->numsyms = numsyms;
+		p->num_syms = numsyms;
 
 		free(modbuf);
 	}
 	else
 	{
 		p->symbols = NULL;
-		p->numsyms = 0;
+		p->num_syms = 0;
 	}
 
 	/* move to an even byte boundary in the file */
@@ -165,26 +165,26 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 	startPoint = ftell(libfile);
 
 	/* read archive member header */
-	if (fread(buf, 1, 60, libfile) != 60)
+	if (fread(buffer, 1, 60, libfile) != 60)
 	{
 		printf("Error reading from file\n");
 		exit(1);
 	}
-	if ((buf[58] != 0x60) || (buf[59] != '\n'))
+	if ((buffer[58] != 0x60) || (buffer[59] != '\n'))
 	{
 		printf("Invalid library file format - bad member signature\n");
 		exit(1);
 	}
-	buf[16] = 0;
+	buffer[16] = 0;
 	/* check name of second linker member */
-	if (!strcmp(buf, "/               ")) /* 15 spaces */
+	if (!strcmp(buffer, "/               ")) /* 15 spaces */
 	{
 		/* OK, so we've found it, now skip over */
-		buf[58] = 0;
+		buffer[58] = 0;
 
 		/* strip trailing spaces from size */
-		endptr = buf + 57;
-		while ((endptr > (buf + 48)) && isspace(*endptr))
+		endptr = buffer + 57;
+		while ((endptr > (buffer + 48)) && isspace(*endptr))
 		{
 			*endptr = 0;
 			endptr--;
@@ -192,7 +192,7 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 
 		/* get size */
 		errno = 0;
-		memberSize = strtoul(buf + 48, (PPCHAR)&endptr, 10);
+		memberSize = strtoul(buffer + 48, (PPCHAR)&endptr, 10);
 		if (errno || (*endptr))
 		{
 			printf("Invalid library file format - bad member size\n");
@@ -220,28 +220,28 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 
 
 	startPoint = ftell(libfile);
-	p->longnames = NULL;
+	p->long_names = NULL;
 
 	/* read archive member header */
-	if (fread(buf, 1, 60, libfile) != 60)
+	if (fread(buffer, 1, 60, libfile) != 60)
 	{
 		printf("Error reading from file\n");
 		exit(1);
 	}
-	if ((buf[58] != 0x60) || (buf[59] != '\n'))
+	if ((buffer[58] != 0x60) || (buffer[59] != '\n'))
 	{
 		printf("Invalid library file format - bad 3rd member signature\n");
 		exit(1);
 	}
-	buf[16] = 0;
+	buffer[16] = 0;
 	/* check name of long names linker member */
-	if (!strcmp(buf, "//              ")) /* 14 spaces */
+	if (!strcmp(buffer, "//              ")) /* 14 spaces */
 	{
-		buf[58] = 0;
+		buffer[58] = 0;
 
 		/* strip trailing spaces from size */
-		endptr = buf + 57;
-		while ((endptr > (buf + 48)) && isspace(*endptr))
+		endptr = buffer + 57;
+		while ((endptr > (buffer + 48)) && isspace(*endptr))
 		{
 			*endptr = 0;
 			endptr--;
@@ -249,7 +249,7 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 
 		/* get size */
 		errno = 0;
-		memberSize = strtoul(buf + 48, (PPCHAR)&endptr, 10);
+		memberSize = strtoul(buffer + 48, (PPCHAR)&endptr, 10);
 		if (errno || (*endptr))
 		{
 			printf("Invalid library file format - bad member size\n");
@@ -257,8 +257,8 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 		}
 		if (memberSize)
 		{
-			p->longnames = (PUCHAR)check_malloc(memberSize);
-			if (fread(p->longnames, 1, memberSize, libfile) != memberSize)
+			p->long_names = (PUCHAR)check_malloc(memberSize);
+			if (fread(p->long_names, 1, memberSize, libfile) != memberSize)
 			{
 				printf("Error reading from file\n");
 				exit(1);
@@ -272,10 +272,10 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 	}
 
 
-	p->modsloaded = 0;
-	p->modlist = check_malloc(sizeof(unsigned short) * numsyms);
-	p->libtype = 'C';
-	p->blocksize = 1;
+	p->mods_loaded = 0;
+	p->mod_list = check_malloc(sizeof(unsigned short) * numsyms);
+	p->lib_type = 'C';
+	p->block_size = 1;
 	p->flags = LIBF_CASESENSITIVE;
 	libcount++;
 }
@@ -285,37 +285,37 @@ void load_coff_lib_mod(PCHAR fname, PLIBFILE p, FILE* libfile)
 	char* name;
 	UINT ofs;
 
-	if (fread(buf, 1, 60, libfile) != 60)
+	if (fread(buffer, 1, 60, libfile) != 60)
 	{
 		printf("Error reading from file\n");
 		exit(1);
 	}
-	if ((buf[58] != 0x60) || (buf[59] != '\n'))
+	if ((buffer[58] != 0x60) || (buffer[59] != '\n'))
 	{
 		printf("Invalid library member header\n");
 		exit(1);
 	}
-	buf[16] = 0;
-	if (buf[0] == '/')
+	buffer[16] = 0;
+	if (buffer[0] == '/')
 	{
 		ofs = 15;
-		while (isspace(buf[ofs]))
+		while (isspace(buffer[ofs]))
 		{
-			buf[ofs] = 0;
+			buffer[ofs] = 0;
 			ofs--;
 		}
 
-		ofs = strtoul(buf + 1, &name, 10);
-		if (!buf[1] || *name)
+		ofs = strtoul(buffer + 1, &name, 10);
+		if (!buffer[1] || *name)
 		{
 			printf("Invalid string number \n");
 			exit(1);
 		}
-		name = p->longnames + ofs;
+		name = p->long_names + ofs;
 	}
 	else
 	{
-		name = buf;
+		name = buffer;
 	}
 
 	printf("Loading module %s\n", name);

@@ -7,13 +7,13 @@ static void fix_public_segments(int src, int dest, UINT shift)
 
 	for (i = 0; i < pubcount; ++i)
 	{
-		for (j = 0; j < publics[i].count; ++j)
+		for (j = 0; j < public_entries[i].count; ++j)
 		{
-			q = (PPUBLIC)publics[i].object[j];
-			if (q->segnum == src)
+			q = (PPUBLIC)public_entries[i].object[j];
+			if (q->segment == src)
 			{
-				q->segnum = dest;
-				q->ofs += shift;
+				q->segment = dest;
+				q->offset += shift;
 			}
 		}
 	}
@@ -26,25 +26,25 @@ static void fix_public_groups(int src, int dest)
 
 	for (i = 0; i < pubcount; ++i)
 	{
-		for (j = 0; j < publics[i].count; ++j)
+		for (j = 0; j < public_entries[i].count; ++j)
 		{
-			q = (PPUBLIC)publics[i].object[j];
-			if (q->grpnum == src)
+			q = (PPUBLIC)public_entries[i].object[j];
+			if (q->group == src)
 			{
-				q->grpnum = dest;
+				q->group = dest;
 			}
 		}
 	}
 }
 
-void combine_segments(PCHAR fname,long dest, long src)
+void combine_segments(PCHAR fname, long dest, long src)
 {
 	UINT k, n;
 	PUCHAR p, q;
 	long a1, a2;
 
-	k = seglist[dest]->length;
-	switch (seglist[src]->attr & SEG_ALIGN)
+	k = segment_list[dest]->length;
+	switch (segment_list[src]->attributes & SEG_ALIGN)
 	{
 	case SEG_WORD:
 		a2 = 2;
@@ -82,7 +82,7 @@ void combine_segments(PCHAR fname,long dest, long src)
 		a2 = 1;
 		break;
 	}
-	switch (seglist[dest]->attr & SEG_ALIGN)
+	switch (segment_list[dest]->attributes & SEG_ALIGN)
 	{
 	case SEG_WORD:
 		a1 = 2;
@@ -112,30 +112,30 @@ void combine_segments(PCHAR fname,long dest, long src)
 		a1 = 1;
 		break;
 	}
-	seglist[src]->base = k;
-	p = check_malloc(k + seglist[src]->length);
-	q = check_malloc((k + seglist[src]->length + 7) / 8);
-	for (k = 0; k < seglist[dest]->length; k++)
+	segment_list[src]->base = k;
+	p = check_malloc(k + segment_list[src]->length);
+	q = check_malloc((k + segment_list[src]->length + 7) >> 3);
+	for (k = 0; k < segment_list[dest]->length; k++)
 	{
-		if (get_n_bit(seglist[dest]->datmask, k))
+		if (get_n_bit(segment_list[dest]->data_mask, k))
 		{
 			set_n_bit(q, k);
-			p[k] = seglist[dest]->data[k];
+			p[k] = segment_list[dest]->data[k];
 		}
 		else
 		{
 			clear_n_bit(q, k);
 		}
 	}
-	for (; k < seglist[src]->base; k++)
+	for (; k < segment_list[src]->base; k++)
 	{
 		clear_n_bit(q, k);
 	}
-	for (; k < (seglist[src]->base + seglist[src]->length); k++)
+	for (; k < (segment_list[src]->base + segment_list[src]->length); k++)
 	{
-		if (get_n_bit(seglist[src]->datmask, k - seglist[src]->base))
+		if (get_n_bit(segment_list[src]->data_mask, k - segment_list[src]->base))
 		{
-			p[k] = seglist[src]->data[k - seglist[src]->base];
+			p[k] = segment_list[src]->data[k - segment_list[src]->base];
 			set_n_bit(q, k);
 		}
 		else
@@ -143,134 +143,134 @@ void combine_segments(PCHAR fname,long dest, long src)
 			clear_n_bit(q, k);
 		}
 	}
-	seglist[dest]->length = k;
-	if (a2 > a1) seglist[dest]->attr = seglist[src]->attr;
-	seglist[dest]->winFlags |= seglist[src]->winFlags;
-	free(seglist[dest]->data);
-	free(seglist[src]->data);
-	free(seglist[dest]->datmask);
-	free(seglist[src]->datmask);
-	seglist[dest]->data = p;
-	seglist[dest]->datmask = q;
+	segment_list[dest]->length = k;
+	if (a2 > a1) segment_list[dest]->attributes = segment_list[src]->attributes;
+	segment_list[dest]->win_flags |= segment_list[src]->win_flags;
+	free(segment_list[dest]->data);
+	free(segment_list[src]->data);
+	free(segment_list[dest]->data_mask);
+	free(segment_list[src]->data_mask);
+	segment_list[dest]->data = p;
+	segment_list[dest]->data_mask = q;
 
-	fix_public_segments(src, dest, seglist[src]->base);
+	fix_public_segments(src, dest, segment_list[src]->base);
 
 	for (k = 0; k < fixcount; k++)
 	{
-		if (relocs[k]->segnum == src)
+		if (relocations[k]->segment == src)
 		{
-			relocs[k]->segnum = dest;
-			relocs[k]->ofs += seglist[src]->base;
+			relocations[k]->segment = dest;
+			relocations[k]->offset += segment_list[src]->base;
 		}
-		if (relocs[k]->ttype == REL_SEGDISP)
+		if (relocations[k]->ttype == REL_SEGDISP)
 		{
-			if (relocs[k]->target == src)
+			if (relocations[k]->target == src)
 			{
-				relocs[k]->target = dest;
-				relocs[k]->disp += seglist[src]->base;
+				relocations[k]->target = dest;
+				relocations[k]->disp += segment_list[src]->base;
 			}
 		}
-		else if (relocs[k]->ttype == REL_SEGONLY)
+		else if (relocations[k]->ttype == REL_SEGONLY)
 		{
-			if (relocs[k]->target == src)
+			if (relocations[k]->target == src)
 			{
-				relocs[k]->target = dest;
-				relocs[k]->ttype = REL_SEGDISP;
-				relocs[k]->disp = seglist[src]->base;
+				relocations[k]->target = dest;
+				relocations[k]->ttype = REL_SEGDISP;
+				relocations[k]->disp = segment_list[src]->base;
 			}
 		}
-		if ((relocs[k]->ftype == REL_SEGFRAME) ||
-			(relocs[k]->ftype == REL_LILEFRAME))
+		if ((relocations[k]->ftype == REL_SEGFRAME) ||
+			(relocations[k]->ftype == REL_LILEFRAME))
 		{
-			if (relocs[k]->frame == src)
+			if (relocations[k]->frame == src)
 			{
-				relocs[k]->frame = dest;
+				relocations[k]->frame = dest;
 			}
 		}
 	}
 
-	if (gotstart)
+	if (got_start_address)
 	{
-		if (startaddr.ttype == REL_SEGDISP)
+		if (start_address.ttype == REL_SEGDISP)
 		{
-			if (startaddr.target == src)
+			if (start_address.target == src)
 			{
-				startaddr.target = dest;
-				startaddr.disp += seglist[src]->base;
+				start_address.target = dest;
+				start_address.disp += segment_list[src]->base;
 			}
 		}
-		else if (startaddr.ttype == REL_SEGONLY)
+		else if (start_address.ttype == REL_SEGONLY)
 		{
-			if (startaddr.target == src)
+			if (start_address.target == src)
 			{
-				startaddr.target = dest;
-				startaddr.disp = seglist[src]->base;
-				startaddr.ttype = REL_SEGDISP;
+				start_address.target = dest;
+				start_address.disp = segment_list[src]->base;
+				start_address.ttype = REL_SEGDISP;
 			}
 		}
-		if ((startaddr.ftype == REL_SEGFRAME) ||
-			(startaddr.ftype == REL_LILEFRAME))
+		if ((start_address.ftype == REL_SEGFRAME) ||
+			(start_address.ftype == REL_LILEFRAME))
 		{
-			if (startaddr.frame == src)
+			if (start_address.frame == src)
 			{
-				startaddr.frame = dest;
+				start_address.frame = dest;
 			}
 		}
 	}
 
 	for (k = 0; k < grpcount; k++)
 	{
-		if (grplist[k])
+		if (group_list[k])
 		{
-			for (n = 0; n < grplist[k]->numsegs; n++)
+			for (n = 0; n < group_list[k]->numsegs; n++)
 			{
-				if (grplist[k]->segindex[n] == src)
+				if (group_list[k]->segindex[n] == src)
 				{
-					grplist[k]->segindex[n] = dest;
+					group_list[k]->segindex[n] = dest;
 				}
 			}
 		}
 	}
 
-	free(seglist[src]);
-	seglist[src] = 0;
+	free(segment_list[src]);
+	segment_list[src] = 0;
 }
 
-void combine_common(PCHAR fname,long i, long j)
+void combine_common(PCHAR fname, long i, long j)
 {
 	UINT k, n;
 	PUCHAR p, q;
 
-	if (seglist[j]->length > seglist[i]->length)
+	if (segment_list[j]->length > segment_list[i]->length)
 	{
-		k = seglist[i]->length;
-		seglist[i]->length = seglist[j]->length;
-		seglist[j]->length = k;
-		p = seglist[i]->data;
-		q = seglist[i]->datmask;
-		seglist[i]->data = seglist[j]->data;
-		seglist[i]->datmask = seglist[j]->datmask;
+		k = segment_list[i]->length;
+		segment_list[i]->length = segment_list[j]->length;
+		segment_list[j]->length = k;
+		p = segment_list[i]->data;
+		q = segment_list[i]->data_mask;
+		segment_list[i]->data = segment_list[j]->data;
+		segment_list[i]->data_mask = segment_list[j]->data_mask;
 	}
 	else
 	{
-		p = seglist[j]->data;
-		q = seglist[j]->datmask;
+		p = segment_list[j]->data;
+		q = segment_list[j]->data_mask;
 	}
-	for (k = 0; k < seglist[j]->length; k++)
+	for (k = 0; k < segment_list[j]->length; k++)
 	{
 		if (get_n_bit(q, k))
 		{
-			if (get_n_bit(seglist[i]->datmask, k))
+			if (get_n_bit(segment_list[i]->data_mask, k))
 			{
-				if (seglist[i]->data[k] != p[k])
+				if (segment_list[i]->data[k] != p[k])
 				{
-					report_error(fname,ERR_OVERWRITE);
+					report_error(fname, ERR_OVERWRITE);
 				}
 			}
 			else
 			{
-				set_n_bit(seglist[i]->datmask, k);
-				seglist[i]->data[k] = p[k];
+				set_n_bit(segment_list[i]->data_mask, k);
+				segment_list[i]->data[k] = p[k];
 			}
 		}
 	}
@@ -281,136 +281,136 @@ void combine_common(PCHAR fname,long i, long j)
 
 	for (k = 0; k < fixcount; k++)
 	{
-		if (relocs[k]->segnum == j)
+		if (relocations[k]->segment == j)
 		{
-			relocs[k]->segnum = i;
+			relocations[k]->segment = i;
 		}
-		if (relocs[k]->ttype == REL_SEGDISP)
+		if (relocations[k]->ttype == REL_SEGDISP)
 		{
-			if (relocs[k]->target == j)
+			if (relocations[k]->target == j)
 			{
-				relocs[k]->target = i;
+				relocations[k]->target = i;
 			}
 		}
-		else if (relocs[k]->ttype == REL_SEGONLY)
+		else if (relocations[k]->ttype == REL_SEGONLY)
 		{
-			if (relocs[k]->target == j)
+			if (relocations[k]->target == j)
 			{
-				relocs[k]->target = i;
+				relocations[k]->target = i;
 			}
 		}
-		if ((relocs[k]->ftype == REL_SEGFRAME) ||
-			(relocs[k]->ftype == REL_LILEFRAME))
+		if ((relocations[k]->ftype == REL_SEGFRAME) ||
+			(relocations[k]->ftype == REL_LILEFRAME))
 		{
-			if (relocs[k]->frame == j)
+			if (relocations[k]->frame == j)
 			{
-				relocs[k]->frame = i;
+				relocations[k]->frame = i;
 			}
 		}
 	}
 
-	if (gotstart)
+	if (got_start_address)
 	{
-		if (startaddr.ttype == REL_SEGDISP)
+		if (start_address.ttype == REL_SEGDISP)
 		{
-			if (startaddr.target == j)
+			if (start_address.target == j)
 			{
-				startaddr.target = i;
+				start_address.target = i;
 			}
 		}
-		else if (startaddr.ttype == REL_SEGONLY)
+		else if (start_address.ttype == REL_SEGONLY)
 		{
-			if (startaddr.target == j)
+			if (start_address.target == j)
 			{
-				startaddr.target = i;
+				start_address.target = i;
 			}
 		}
-		if ((startaddr.ftype == REL_SEGFRAME) ||
-			(startaddr.ftype == REL_LILEFRAME))
+		if ((start_address.ftype == REL_SEGFRAME) ||
+			(start_address.ftype == REL_LILEFRAME))
 		{
-			if (startaddr.frame == j)
+			if (start_address.frame == j)
 			{
-				startaddr.frame = i;
+				start_address.frame = i;
 			}
 		}
 	}
 
 	for (k = 0; k < grpcount; k++)
 	{
-		if (grplist[k])
+		if (group_list[k])
 		{
-			for (n = 0; n < grplist[k]->numsegs; n++)
+			for (n = 0; n < group_list[k]->numsegs; n++)
 			{
-				if (grplist[k]->segindex[n] == j)
+				if (group_list[k]->segindex[n] == j)
 				{
-					grplist[k]->segindex[n] = i;
+					group_list[k]->segindex[n] = i;
 				}
 			}
 		}
 	}
 
-	free(seglist[j]);
-	seglist[j] = 0;
+	free(segment_list[j]);
+	segment_list[j] = 0;
 }
 
-void combine_groups(PCHAR fname,long i, long j)
+void combine_groups(PCHAR fname, long i, long j)
 {
 	long n, m;
 	char match;
 
-	for (n = 0; n < grplist[j]->numsegs; n++)
+	for (n = 0; n < group_list[j]->numsegs; n++)
 	{
 		match = 0;
-		for (m = 0; m < grplist[i]->numsegs; m++)
+		for (m = 0; m < group_list[i]->numsegs; m++)
 		{
-			if (grplist[j]->segindex[n] == grplist[i]->segindex[m])
+			if (group_list[j]->segindex[n] == group_list[i]->segindex[m])
 			{
 				match = 1;
 			}
 		}
 		if (!match)
 		{
-			grplist[i]->numsegs++;
-			grplist[i]->segindex[grplist[i]->numsegs] = grplist[j]->segindex[n];
+			group_list[i]->numsegs++;
+			group_list[i]->segindex[group_list[i]->numsegs] = group_list[j]->segindex[n];
 		}
 	}
-	free(grplist[j]);
-	grplist[j] = 0;
+	free(group_list[j]);
+	group_list[j] = 0;
 
 	fix_public_groups(j, i);
 
 	for (n = 0; n < fixcount; n++)
 	{
-		if (relocs[n]->ftype == REL_GRPFRAME)
+		if (relocations[n]->ftype == REL_GRPFRAME)
 		{
-			if (relocs[n]->frame == j)
+			if (relocations[n]->frame == j)
 			{
-				relocs[n]->frame = i;
+				relocations[n]->frame = i;
 			}
 		}
-		if ((relocs[n]->ttype == REL_GRPONLY) || (relocs[n]->ttype == REL_GRPDISP))
+		if ((relocations[n]->ttype == REL_GRPONLY) || (relocations[n]->ttype == REL_GRPDISP))
 		{
-			if (relocs[n]->target == j)
+			if (relocations[n]->target == j)
 			{
-				relocs[n]->target = i;
+				relocations[n]->target = i;
 			}
 		}
 	}
 
-	if (gotstart)
+	if (got_start_address)
 	{
-		if ((startaddr.ttype == REL_GRPDISP) || (startaddr.ttype == REL_GRPONLY))
+		if ((start_address.ttype == REL_GRPDISP) || (start_address.ttype == REL_GRPONLY))
 		{
-			if (startaddr.target == j)
+			if (start_address.target == j)
 			{
-				startaddr.target = i;
+				start_address.target = i;
 			}
 		}
-		if (startaddr.ftype == REL_GRPFRAME)
+		if (start_address.ftype == REL_GRPFRAME)
 		{
-			if (startaddr.frame == j)
+			if (start_address.frame == j)
 			{
-				startaddr.frame = i;
+				start_address.frame = i;
 			}
 		}
 	}
@@ -427,36 +427,40 @@ void combine_blocks(PCHAR fname)
 
 	for (i = 0; i < segcount; i++)
 	{
-		if (seglist[i] && ((seglist[i]->attr & SEG_ALIGN) != SEG_ABS))
+		if (segment_list[i] && ((segment_list[i]->attributes & SEG_ALIGN) != SEG_ABS))
 		{
-			if (seglist[i]->winFlags & WINF_COMDAT) continue; /* don't combine COMDAT segments */
-			name = namelist[seglist[i]->nameindex];
-			attr = seglist[i]->attr & (SEG_COMBINE | SEG_USE32);
+			segcount_combined++;
+			if (segment_list[i]->win_flags & WINF_COMDAT) continue; /* don't combine COMDAT segments */
+			name = name_list[segment_list[i]->name_index];
+			attr = segment_list[i]->attributes & (SEG_COMBINE | SEG_USE32);
 			switch (attr & SEG_COMBINE)
 			{
 			case SEG_STACK:
+			{
 				for (j = i + 1; j < segcount; j++)
 				{
-					if (!seglist[j]) continue;
-					if (seglist[j]->winFlags & WINF_COMDAT) continue;
-					if ((seglist[j]->attr & SEG_ALIGN) == SEG_ABS) continue;
-					if ((seglist[j]->attr & SEG_COMBINE) != SEG_STACK) continue;
-					combine_segments(fname,i, j);
+					if (!segment_list[j]) continue;
+					if (segment_list[j]->win_flags & WINF_COMDAT) continue;
+					if ((segment_list[j]->attributes & SEG_ALIGN) == SEG_ABS) continue;
+					if ((segment_list[j]->attributes & SEG_COMBINE) != SEG_STACK) continue;
+					combine_segments(fname, i, j);
 				}
 				break;
+			}
 			case SEG_PUBLIC:
 			case SEG_PUBLIC2:
 			case SEG_PUBLIC3:
+			{
 				slist = (UINT*)check_malloc(sizeof(UINT));
 				slist[0] = i;
 				/* get list of segments to combine */
 				for (j = i + 1, count = 1; j < segcount; j++)
 				{
-					if (!seglist[j]) continue;
-					if (seglist[j]->winFlags & WINF_COMDAT) continue;
-					if ((seglist[j]->attr & SEG_ALIGN) == SEG_ABS) continue;
-					if (attr != (seglist[j]->attr & (SEG_COMBINE | SEG_USE32))) continue;
-					if (strcmp(name, namelist[seglist[j]->nameindex]) != 0) continue;
+					if (!segment_list[j]) continue;
+					if (segment_list[j]->win_flags & WINF_COMDAT) continue;
+					if ((segment_list[j]->attributes & SEG_ALIGN) == SEG_ABS) continue;
+					if (attr != (segment_list[j]->attributes & (SEG_COMBINE | SEG_USE32))) continue;
+					if (strcmp(name, name_list[segment_list[j]->name_index]) != 0) continue;
 					slist = (UINT*)check_realloc(slist, (count + 1) * sizeof(UINT));
 					slist[count] = j;
 					count++;
@@ -467,11 +471,11 @@ void combine_blocks(PCHAR fname)
 					curseg = slist[j];
 					for (k = j - 1; k >= 0; k--)
 					{
-						if (seglist[slist[k]]->orderindex < 0) break;
-						if (seglist[curseg]->orderindex >= 0)
+						if (segment_list[slist[k]]->order_index < 0) break;
+						if (segment_list[curseg]->order_index >= 0)
 						{
-							if (strcmp(namelist[seglist[curseg]->orderindex],
-								namelist[seglist[slist[k]]->orderindex]) >= 0) break;
+							if (strcmp(name_list[segment_list[curseg]->order_index],
+								name_list[segment_list[slist[k]]->order_index]) >= 0) break;
 						}
 						slist[k + 1] = slist[k];
 					}
@@ -481,24 +485,27 @@ void combine_blocks(PCHAR fname)
 				/* then combine in that order */
 				for (j = 1; j < count; j++)
 				{
-					combine_segments(fname,i, slist[j]);
+					combine_segments(fname, i, slist[j]);
 				}
 				free(slist);
 				break;
+			}
 			case SEG_COMMON:
+			{
 				for (j = i + 1; j < segcount; j++)
 				{
-					if ((seglist[j] && ((seglist[j]->attr & SEG_ALIGN) != SEG_ABS)) &&
-						((seglist[i]->attr & (SEG_ALIGN | SEG_COMBINE | SEG_USE32)) == (seglist[j]->attr & (SEG_ALIGN | SEG_COMBINE | SEG_USE32)))
+					if ((segment_list[j] && ((segment_list[j]->attributes & SEG_ALIGN) != SEG_ABS)) &&
+						((segment_list[i]->attributes & (SEG_ALIGN | SEG_COMBINE | SEG_USE32)) == (segment_list[j]->attributes & (SEG_ALIGN | SEG_COMBINE | SEG_USE32)))
 						&&
-						(strcmp(name, namelist[seglist[j]->nameindex]) == 0)
-						&& !(seglist[j]->winFlags & WINF_COMDAT)
+						(strcmp(name, name_list[segment_list[j]->name_index]) == 0)
+						&& !(segment_list[j]->win_flags & WINF_COMDAT)
 						)
 					{
-						combine_common(fname,i, j);
+						combine_common(fname, i, j);
 					}
 				}
 				break;
+			}
 			default:
 				break;
 			}
@@ -507,14 +514,14 @@ void combine_blocks(PCHAR fname)
 
 	for (i = 0; i < grpcount; i++)
 	{
-		if (grplist[i])
+		if (group_list[i])
 		{
 			for (j = i + 1; j < grpcount; j++)
 			{
-				if (!grplist[j]) continue;
-				if (strcmp(namelist[grplist[i]->nameindex], namelist[grplist[j]->nameindex]) == 0)
+				if (!group_list[j]) continue;
+				if (strcmp(name_list[group_list[i]->name_index], name_list[group_list[j]->name_index]) == 0)
 				{
-					combine_groups(fname,i, j);
+					combine_groups(fname, i, j);
 				}
 			}
 		}

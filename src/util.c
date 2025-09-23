@@ -15,17 +15,17 @@ int get_bit_count(UINT a)
 
 void clear_n_bit(PUCHAR mask, long i)
 {
-	mask[i / 8] &= 0xff - (1 << (i % 8));
+	mask[i >> 3] &= 0xff - (1 << (i & 0x7));
 }
 
 void set_n_bit(PUCHAR mask, long i)
 {
-	mask[i / 8] |= (1 << (i % 8));
+	mask[i >> 3] |= (1 << (i & 0x7));
 }
 
 char get_n_bit(PUCHAR mask, long i)
 {
-	return (mask[i / 8] >> (i % 8)) & 1;
+	return (mask[i >> 3] >> (i & 0x7)) & 1;
 }
 
 long get_index(PUCHAR buf, long* index)
@@ -33,7 +33,7 @@ long get_index(PUCHAR buf, long* index)
 	long i;
 	if (buf[*index] & 0x80)
 	{
-		i = ((buf[*index] & 0x7f) * 256) + buf[(*index) + 1];
+		i = (((UINT)(buf[*index] & 0x7f)) << 8) + buf[(*index) + 1];
 		(*index) += 2;
 		return i;
 	}
@@ -43,11 +43,11 @@ long get_index(PUCHAR buf, long* index)
 	}
 }
 
-void report_error(PCHAR fname,long errnum)
+void report_error(PCHAR fname, long errnum)
 {
 	UINT tot, i;
 
-	printf("\nError in file %s at %08lX", fname, filepos);
+	printf("\nError in file %s at %08lX", fname, file_position);
 	switch (errnum)
 	{
 	case ERR_EXTRA_DATA:
@@ -87,7 +87,7 @@ void report_error(PCHAR fname,long errnum)
 		printf(" - duplicate module header\n");
 		break;
 	case ERR_UNKNOWN_RECTYPE:
-		printf(" - unknown object module record type %02X\n", rectype);
+		printf(" - unknown object module record type %02X\n", record_type);
 		break;
 	case ERR_SEG_TOO_LARGE:
 		printf(" - 4Gb Non-Absolute segments not supported.\n");
@@ -110,7 +110,7 @@ void report_error(PCHAR fname,long errnum)
 	default:
 		printf("\n");
 	}
-	printf("name count = %i\n", namecount);
+	printf("name count = %i\n", name_count);
 	printf("seg count = %i\n", segcount);
 	printf("extcount=%i\n", extcount);
 	printf("grpcount=%i\n", grpcount);
@@ -122,8 +122,8 @@ void report_error(PCHAR fname,long errnum)
 
 	for (i = 0, tot = 0; i < segcount; i++)
 	{
-		if (seglist[i] && seglist[i]->data) {
-			tot += seglist[i]->length;
+		if (segment_list[i] && segment_list[i]->data) {
+			tot += segment_list[i]->length;
 			//printf("segment %d size=%08X\n", i, seglist[i]->length);
 		}
 	}
@@ -134,7 +134,7 @@ void report_error(PCHAR fname,long errnum)
 
 unsigned short wtoupper(unsigned short a)
 {
-	if (a >= 256) return a;
+	if (a >= 0x100) return a;
 	return toupper(a);
 }
 

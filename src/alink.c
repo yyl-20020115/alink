@@ -1,59 +1,61 @@
 #include "alink.h"
 
 char case_sensitive = 1;
-char padsegments = 0;
-char mapfile = 0;
-PCHAR mapname = 0;
-unsigned short maxalloc = 0xffff;
+char pad_segments = 0;
+char map_file = 0;
+PCHAR map_name = 0;
+unsigned short max_alloc = ~0;
 int output_type = OUTPUT_EXE;
-PCHAR outname = 0;
+PCHAR out_name = 0;
 
-FILE* afile = 0;
-UINT filepos = 0;
-long reclength = 0;
-unsigned char rectype = 0;
+FILE* a_file = 0;
+UINT file_position = 0;
+long record_length = 0;
+unsigned char record_type = 0;
 char li_le = 0;
-UINT prevofs = 0;
-long prevseg = 0;
-long gotstart = 0;
-RELOC startaddr;
-UINT imageBase = 0;
-UINT fileAlign = 1;
-UINT objectAlign = 1;
-UINT stackSize;
-UINT stackCommitSize;
-UINT heapSize;
-UINT heapCommitSize;
-unsigned char osMajor, osMinor;
-unsigned char subsysMajor, subsysMinor;
-unsigned int subSystem;
-int buildDll = FALSE;
-PUCHAR stubName = NULL;
+UINT previous_offset = 0;
+long previous_segment = 0;
+long got_start_address = 0;
+RELOC start_address;
+UINT image_base = 0;
+UINT file_align = 1;
+UINT object_align = 1;
+UINT stack_size = 4096;
+UINT stack_commit_size = 4096;
+UINT heap_size = 4096;
+UINT heap_commit_size = 4096;
+unsigned char os_major, os_minor;
+unsigned char sub_system_major, sub_system_minor;
+unsigned int sub_system;
+int build_dll = FALSE;
+PUCHAR stub_name = NULL;
 
-long errcount = 0;
+long error_count = 0;
 
-unsigned char buf[65536];
+unsigned char buffer[0x10000];
 PDATABLOCK lidata;
 
-PPCHAR namelist = NULL;
-PPSEG seglist = NULL;
-PPSEG outlist = NULL;
-PPGRP grplist = NULL;
-PSORTENTRY publics = NULL;
-PEXTREC externs = NULL;
-PPCOMREC comdefs = NULL;
-PPRELOC relocs = NULL;
-PIMPREC impdefs = NULL;
-PEXPREC expdefs = NULL;
-PLIBFILE libfiles = NULL;
+PPCHAR name_list = NULL;
+PPSEG segment_list = NULL;
+PPSEG out_list = NULL;
+PPGRP group_list = NULL;
+PSORTENTRY public_entries = NULL;
+PEXTREC extern_records = NULL;
+PPCOMREC common_definitions = NULL;
+PPRELOC relocations = NULL;
+PIMPREC import_definitions = NULL;
+PEXPREC export_definitions = NULL;
+PLIBFILE library_files = NULL;
 PRESOURCE resource = NULL;
-PSORTENTRY comdats = NULL;
-PPCHAR modname;
-PPCHAR filename;
-UINT namecount = 0, namemin = 0,
+PSORTENTRY comdat_entries = NULL;
+PPCHAR mod_name;
+PPCHAR file_name;
+UINT name_count = 0, name_min = 0,
 pubcount = 0, pubmin = 0,
 segcount = 0, segmin = 0, outcount = 0,
+segcount_combined = 0,
 grpcount = 0, grpmin = 0,
+grpcount_combined = 0,
 extcount = 0, extmin = 0,
 comcount = 0, commin = 0,
 fixcount = 0, fixmin = 0,
@@ -63,9 +65,9 @@ nummods = 0,
 filecount = 0,
 libcount = 0,
 rescount = 0;
-UINT libPathCount = 0;
-PCHAR* libPath = NULL;
-char* entryPoint = NULL;
+UINT lib_path_count = 0;
+PCHAR* lib_path = NULL;
+char* entry_point_function_name = NULL;
 
 static void process_command_line(int argc, char** argv)
 {
@@ -202,17 +204,17 @@ static void process_command_line(int argc, char** argv)
 				switch (strlen(argv[i]))
 				{
 				case 2:
-					padsegments = 1;
+					pad_segments = 1;
 					break;
 				case 3:
 					if (argv[i][2] == '+')
 					{
-						padsegments = 1;
+						pad_segments = 1;
 						break;
 					}
 					else if (argv[i][2] == '-')
 					{
-						padsegments = 0;
+						pad_segments = 0;
 						break;
 					}
 				default:
@@ -224,17 +226,17 @@ static void process_command_line(int argc, char** argv)
 				switch (strlen(argv[i]))
 				{
 				case 2:
-					mapfile = 1;
+					map_file = 1;
 					break;
 				case 3:
 					if (argv[i][2] == '+')
 					{
-						mapfile = 1;
+						map_file = 1;
 						break;
 					}
 					else if (argv[i][2] == '-')
 					{
-						mapfile = 0;
+						map_file = 0;
 						break;
 					}
 				default:
@@ -249,10 +251,10 @@ static void process_command_line(int argc, char** argv)
 					if (i < (argc - 1))
 					{
 						i++;
-						if (!outname)
+						if (!out_name)
 						{
-							outname = check_malloc(strlen(argv[i]) + 1 + 4); /* space for added .EXT if none given */
-							strcpy(outname, argv[i]);
+							out_name = check_malloc(strlen(argv[i]) + 1 + 4); /* space for added .EXT if none given */
+							strcpy(out_name, argv[i]);
 						}
 						else
 						{
@@ -267,45 +269,45 @@ static void process_command_line(int argc, char** argv)
 					}
 					break;
 				default:
-					if (!strcmp(argv[i] + 2, "EXE"))
+					if (!strcasecmp(argv[i] + 2, "EXE"))
 					{
 						output_type = OUTPUT_EXE;
-						imageBase = 0;
-						fileAlign = 1;
-						objectAlign = 1;
-						stackSize = 0;
-						stackCommitSize = 0;
-						heapSize = 0;
-						heapCommitSize = 0;
+						image_base = 0;
+						file_align = 1;
+						object_align = 1;
+						stack_size = 0;
+						stack_commit_size = 0;
+						heap_size = 0;
+						heap_commit_size = 0;
 					}
-					else if (!strcmp(argv[i] + 2, "COM"))
+					else if (!strcasecmp(argv[i] + 2, "COM"))
 					{
 						output_type = OUTPUT_COM;
-						imageBase = 0;
-						fileAlign = 1;
-						objectAlign = 1;
-						stackSize = 0;
-						stackCommitSize = 0;
-						heapSize = 0;
-						heapCommitSize = 0;
+						image_base = 0;
+						file_align = 1;
+						object_align = 1;
+						stack_size = 0;
+						stack_commit_size = 0;
+						heap_size = 0;
+						heap_commit_size = 0;
 					}
-					else if (!strcmp(argv[i] + 2, "PE"))
+					else if (!strcasecmp(argv[i] + 2, "PE"))
 					{
 						output_type = OUTPUT_PE;
-						imageBase = WIN32_DEFAULT_BASE;
-						fileAlign = WIN32_DEFAULT_FILEALIGN;
-						objectAlign = WIN32_DEFAULT_OBJECTALIGN;
-						stackSize = WIN32_DEFAULT_STACKSIZE;
-						stackCommitSize = WIN32_DEFAULT_STACKCOMMITSIZE;
-						heapSize = WIN32_DEFAULT_HEAPSIZE;
-						heapCommitSize = WIN32_DEFAULT_HEAPCOMMITSIZE;
-						subSystem = WIN32_DEFAULT_SUBSYS;
-						subsysMajor = WIN32_DEFAULT_SUBSYSMAJOR;
-						subsysMinor = WIN32_DEFAULT_SUBSYSMINOR;
-						osMajor = WIN32_DEFAULT_OSMAJOR;
-						osMinor = WIN32_DEFAULT_OSMINOR;
+						image_base = WIN32_DEFAULT_BASE;
+						file_align = WIN32_DEFAULT_FILEALIGN;
+						object_align = WIN32_DEFAULT_OBJECTALIGN;
+						stack_size = WIN32_DEFAULT_STACKSIZE;
+						stack_commit_size = WIN32_DEFAULT_STACKCOMMITSIZE;
+						heap_size = WIN32_DEFAULT_HEAPSIZE;
+						heap_commit_size = WIN32_DEFAULT_HEAPCOMMITSIZE;
+						sub_system = WIN32_DEFAULT_SUBSYS;
+						sub_system_major = WIN32_DEFAULT_SUBSYSMAJOR;
+						sub_system_minor = WIN32_DEFAULT_SUBSYSMINOR;
+						os_major = WIN32_DEFAULT_OSMAJOR;
+						os_minor = WIN32_DEFAULT_OSMINOR;
 					}
-					else if (!strcmp(argv[i] + 1, "objectalign"))
+					else if (!strcasecmp(argv[i] + 1, "objectalign"))
 					{
 						if (i < (argc - 1))
 						{
@@ -316,7 +318,7 @@ static void process_command_line(int argc, char** argv)
 								printf("Bad object alignment\n");
 								exit(1);
 							}
-							if ((setoalign < 512) || (setoalign > (256 * 1048576))
+							if ((setoalign < 0x200) || (setoalign > (0x100 * 1048576))
 								|| (get_bit_count(setoalign) > 1))
 							{
 								printf("Bad object alignment\n");
@@ -330,7 +332,7 @@ static void process_command_line(int argc, char** argv)
 							exit(1);
 						}
 					}
-					else if (!strcmp(argv[i] + 1, "osver"))
+					else if (!strcasecmp(argv[i] + 1, "osver"))
 					{
 						if (i < (argc - 1))
 						{
@@ -341,7 +343,7 @@ static void process_command_line(int argc, char** argv)
 								exit(1);
 							}
 							if ((j != strlen(argv[i])) || (setosmajor < 0) || (setosminor < 0)
-								|| (setosmajor > 65535) || (setosminor > 65535))
+								|| (setosmajor > 0x10000) || (setosminor > 0x10000))
 							{
 								printf("Invalid version number %s\n", argv[i]);
 								exit(1);
@@ -369,20 +371,20 @@ static void process_command_line(int argc, char** argv)
 					if (i < (argc - 1))
 					{
 						i++;
-						libPathCount++;
-						libPath = (PCHAR*)check_realloc(libPath, libPathCount * sizeof(PCHAR));
+						lib_path_count++;
+						lib_path = (PCHAR*)check_realloc(lib_path, lib_path_count * sizeof(PCHAR));
 						j = (long)strlen(argv[i]);
 						if (argv[i][j - 1] != PATH_CHAR)
 						{
 							/* append a path separator if not present */
-							libPath[libPathCount - 1] = (char*)check_malloc(j + 2);
-							strcpy(libPath[libPathCount - 1], argv[i]);
-							libPath[libPathCount - 1][j] = PATH_CHAR;
-							libPath[libPathCount - 1][j + 1] = 0;
+							lib_path[lib_path_count - 1] = (char*)check_malloc(j + 2);
+							strcpy(lib_path[lib_path_count - 1], argv[i]);
+							lib_path[lib_path_count - 1][j] = PATH_CHAR;
+							lib_path[lib_path_count - 1][j + 1] = 0;
 						}
 						else
 						{
-							libPath[libPathCount - 1] = check_strdup(argv[i]);
+							lib_path[lib_path_count - 1] = check_strdup(argv[i]);
 						}
 					}
 					else
@@ -402,7 +404,7 @@ static void process_command_line(int argc, char** argv)
 				{
 					helpRequested = TRUE;
 				}
-				else if (!strcmp(argv[i] + 1, "heapsize"))
+				else if (!strcasecmp(argv[i] + 1, "heapsize"))
 				{
 					if (i < (argc - 1))
 					{
@@ -422,7 +424,7 @@ static void process_command_line(int argc, char** argv)
 					}
 					break;
 				}
-				else if (!strcmp(argv[i] + 1, "heapcommitsize"))
+				else if (!strcasecmp(argv[i] + 1, "heapcommitsize"))
 				{
 					if (i < (argc - 1))
 					{
@@ -444,7 +446,7 @@ static void process_command_line(int argc, char** argv)
 				}
 				break;
 			case 'b':
-				if (!strcmp(argv[i] + 1, "base"))
+				if (!strcasecmp(argv[i] + 1, "base"))
 				{
 					if (i < (argc - 1))
 					{
@@ -476,31 +478,31 @@ static void process_command_line(int argc, char** argv)
 				}
 				break;
 			case 's':
-				if (!strcmp(argv[i] + 1, "subsys"))
+				if (!strcasecmp(argv[i] + 1, "subsys"))
 				{
 					if (i < (argc - 1))
 					{
 						i++;
-						if (!strcmp(argv[i], "gui")
-							|| !strcmp(argv[i], "windows")
-							|| !strcmp(argv[i], "win"))
+						if (!strcasecmp(argv[i], "gui")
+							|| !strcasecmp(argv[i], "windows")
+							|| !strcasecmp(argv[i], "win"))
 						{
 							setsubsys = PE_SUBSYS_WINDOWS;
 							gotsubsys = TRUE;
 						}
-						else if (!strcmp(argv[i], "char")
-							|| !strcmp(argv[i], "console")
-							|| !strcmp(argv[i], "con"))
+						else if (!strcasecmp(argv[i], "char")
+							|| !strcasecmp(argv[i], "console")
+							|| !strcasecmp(argv[i], "con"))
 						{
 							setsubsys = PE_SUBSYS_CONSOLE;
 							gotsubsys = TRUE;
 						}
-						else if (!strcmp(argv[i], "native"))
+						else if (!strcasecmp(argv[i], "native"))
 						{
 							setsubsys = PE_SUBSYS_NATIVE;
 							gotsubsys = TRUE;
 						}
-						else if (!strcmp(argv[i], "posix"))
+						else if (!strcasecmp(argv[i], "posix"))
 						{
 							setsubsys = PE_SUBSYS_POSIX;
 							gotsubsys = TRUE;
@@ -518,7 +520,7 @@ static void process_command_line(int argc, char** argv)
 					}
 					break;
 				}
-				else if (!strcmp(argv[i] + 1, "subsysver"))
+				else if (!strcasecmp(argv[i] + 1, "subsysver"))
 				{
 					if (i < (argc - 1))
 					{
@@ -529,7 +531,7 @@ static void process_command_line(int argc, char** argv)
 							exit(1);
 						}
 						if ((j != strlen(argv[i])) || (setsubsysmajor < 0) || (setsubsysminor < 0)
-							|| (setsubsysmajor > 65535) || (setsubsysminor > 65535))
+							|| (setsubsysmajor > 0x10000) || (setsubsysminor > 0x10000))
 						{
 							printf("Invalid version number %s\n", argv[i]);
 							exit(1);
@@ -543,7 +545,7 @@ static void process_command_line(int argc, char** argv)
 					}
 					break;
 				}
-				else if (!strcmp(argv[i] + 1, "stacksize"))
+				else if (!strcasecmp(argv[i] + 1, "stacksize"))
 				{
 					if (i < (argc - 1))
 					{
@@ -563,7 +565,7 @@ static void process_command_line(int argc, char** argv)
 					}
 					break;
 				}
-				else if (!strcmp(argv[i] + 1, "stackcommitsize"))
+				else if (!strcasecmp(argv[i] + 1, "stackcommitsize"))
 				{
 					if (i < (argc - 1))
 					{
@@ -583,12 +585,12 @@ static void process_command_line(int argc, char** argv)
 					}
 					break;
 				}
-				else if (!strcmp(argv[i] + 1, "stub"))
+				else if (!strcasecmp(argv[i] + 1, "stub"))
 				{
 					if (i < (argc - 1))
 					{
 						i++;
-						stubName = argv[i];
+						stub_name = argv[i];
 					}
 					else
 					{
@@ -604,7 +606,7 @@ static void process_command_line(int argc, char** argv)
 				}
 				break;
 			case 'f':
-				if (!strcmp(argv[i] + 1, "filealign"))
+				if (!strcasecmp(argv[i] + 1, "filealign"))
 				{
 					if (i < (argc - 1))
 					{
@@ -615,7 +617,7 @@ static void process_command_line(int argc, char** argv)
 							printf("Bad file alignment\n");
 							exit(1);
 						}
-						if ((setfalign < 512) || (setfalign > 65536)
+						if ((setfalign < 512) || (setfalign > 0x10000)
 							|| (get_bit_count(setfalign) > 1))
 						{
 							printf("Bad file alignment\n");
@@ -636,9 +638,9 @@ static void process_command_line(int argc, char** argv)
 				}
 				break;
 			case 'd':
-				if (!strcmp(argv[i] + 1, "dll"))
+				if (!strcasecmp(argv[i] + 1, "dll"))
 				{
-					buildDll = TRUE;
+					build_dll = TRUE;
 				}
 				else
 				{
@@ -647,12 +649,12 @@ static void process_command_line(int argc, char** argv)
 				}
 				break;
 			case 'e':
-				if (!strcmp(argv[i] + 1, "entry"))
+				if (!strcasecmp(argv[i] + 1, "entry"))
 				{
 					if (i < (argc - 1))
 					{
 						i++;
-						entryPoint = argv[i];
+						entry_point_function_name = argv[i];
 					}
 					else
 					{
@@ -674,19 +676,19 @@ static void process_command_line(int argc, char** argv)
 		}
 		else
 		{
-			filename = check_realloc(filename, (filecount + 1) * sizeof(PCHAR));
-			filename[filecount] = check_malloc(strlen(argv[i]) + 1);
-			memcpy(filename[filecount], argv[i], strlen(argv[i]) + 1);
-			for (j = (long)strlen(filename[filecount]);
-				j && (filename[filecount][j] != '.') &&
-				(filename[filecount][j] != PATH_CHAR);
+			file_name = check_realloc(file_name, (filecount + 1) * sizeof(PCHAR));
+			file_name[filecount] = check_malloc(strlen(argv[i]) + 1);
+			memcpy(file_name[filecount], argv[i], strlen(argv[i]) + 1);
+			for (j = (long)strlen(file_name[filecount]);
+				j && (file_name[filecount][j] != '.') &&
+				(file_name[filecount][j] != PATH_CHAR);
 				j--);
-			if ((j < 0) || (filename[filecount][j] != '.'))
+			if ((j < 0) || (file_name[filecount][j] != '.'))
 			{
-				j = (long)strlen(filename[filecount]);
+				j = (long)strlen(file_name[filecount]);
 				/* add default extension if none specified */
-				filename[filecount] = check_realloc(filename[filecount], strlen(argv[i]) + 5);
-				strcpy(filename[filecount] + j, DEFAULT_EXTENSION);
+				file_name[filecount] = check_realloc(file_name[filecount], strlen(argv[i]) + 5);
+				strcpy(file_name[filecount] + j, DEFAULT_EXTENSION);
 			}
 			filecount++;
 		}
@@ -755,7 +757,7 @@ static void process_command_line(int argc, char** argv)
 	}
 	if ((output_type != OUTPUT_PE) &&
 		(gotoalign || gotfalign || gotbase || gotsubsys || gotstack ||
-			gotstackcommit || gotheap || gotheapcommit || buildDll || stubName ||
+			gotstackcommit || gotheap || gotheapcommit || build_dll || stub_name ||
 			gotsubsysver || gotosver))
 	{
 		printf("Option not supported for non-PE output formats\n");
@@ -763,55 +765,55 @@ static void process_command_line(int argc, char** argv)
 	}
 	if (gotstack)
 	{
-		stackSize = setstack;
+		stack_size = setstack;
 	}
 	if (gotstackcommit)
 	{
-		stackCommitSize = setstackcommit;
+		stack_commit_size = setstackcommit;
 	}
-	if (stackCommitSize > stackSize)
+	if (stack_commit_size > stack_size)
 	{
 		printf("Stack commit size is greater than stack size, committing whole stack\n");
-		stackCommitSize = stackSize;
+		stack_commit_size = stack_size;
 	}
 	if (gotheap)
 	{
-		heapSize = setheap;
+		heap_size = setheap;
 	}
 	if (gotheapcommit)
 	{
-		heapCommitSize = setheapcommit;
+		heap_commit_size = setheapcommit;
 	}
-	if (heapCommitSize > heapSize)
+	if (heap_commit_size > heap_size)
 	{
 		printf("Heap commit size is greater than heap size, committing whole heap\n");
-		heapCommitSize = heapSize;
+		heap_commit_size = heap_size;
 	}
 	if (gotoalign)
 	{
-		objectAlign = setoalign;
+		object_align = setoalign;
 	}
 	if (gotfalign)
 	{
-		fileAlign = setfalign;
+		file_align = setfalign;
 	}
 	if (gotbase)
 	{
-		imageBase = setbase;
+		image_base = setbase;
 	}
 	if (gotsubsys)
 	{
-		subSystem = setsubsys;
+		sub_system = setsubsys;
 	}
 	if (gotsubsysver)
 	{
-		subsysMajor = setsubsysmajor;
-		subsysMinor = setsubsysminor;
+		sub_system_major = setsubsysmajor;
+		sub_system_minor = setsubsysminor;
 	}
 	if (gotosver)
 	{
-		osMajor = setosmajor;
-		osMinor = setosminor;
+		os_major = setosmajor;
+		os_minor = setosminor;
 	}
 }
 
@@ -827,15 +829,15 @@ static void match_externs()
 	{
 		for (i = 0; i < expcount; i++)
 		{
-			if (expdefs[i].pubdef) continue;
-			if (listnode = binary_search(publics, pubcount, expdefs[i].int_name))
+			if (export_definitions[i].pubdef) continue;
+			if (listnode = binary_search(public_entries, pubcount, export_definitions[i].int_name))
 			{
 				for (k = 0; k < listnode->count; k++)
 				{
 					/* exports can only match global publics */
-					if (((PPUBLIC)listnode->object[k])->modnum == 0)
+					if (((PPUBLIC)listnode->object[k])->mod == 0)
 					{
-						expdefs[i].pubdef = (PPUBLIC)listnode->object[k];
+						export_definitions[i].pubdef = (PPUBLIC)listnode->object[k];
 						break;
 					}
 				}
@@ -845,47 +847,47 @@ static void match_externs()
 		{
 			/* skip if we've already matched a public symbol */
 			/* as they override all others */
-			if (externs[i].flags == EXT_MATCHEDPUBLIC) continue;
-			externs[i].flags = EXT_NOMATCH;
-			if (listnode = binary_search(publics, pubcount, externs[i].name))
+			if (extern_records[i].flags == EXT_MATCHEDPUBLIC) continue;
+			extern_records[i].flags = EXT_NOMATCH;
+			if (listnode = binary_search(public_entries, pubcount, extern_records[i].name))
 			{
 				for (k = 0; k < listnode->count; k++)
 				{
 					/* local publics can only match externs in same module */
 					/* and global publics can only match global externs */
-					if (((PPUBLIC)listnode->object[k])->modnum == externs[i].modnum)
+					if (((PPUBLIC)listnode->object[k])->mod == extern_records[i].mod)
 					{
-						externs[i].pubdef = (PPUBLIC)listnode->object[k];
-						externs[i].flags = EXT_MATCHEDPUBLIC;
+						extern_records[i].pubdef = (PPUBLIC)listnode->object[k];
+						extern_records[i].flags = EXT_MATCHEDPUBLIC;
 						break;
 					}
 				}
 			}
-			if (externs[i].flags == EXT_NOMATCH)
+			if (extern_records[i].flags == EXT_NOMATCH)
 			{
 				for (j = 0; j < impcount; j++)
 				{
-					if (!strcmp(externs[i].name, impdefs[j].int_name)
+					if (!strcmp(extern_records[i].name, import_definitions[j].int_name)
 						|| ((case_sensitive == 0) &&
-							!strcasecmp(externs[i].name, impdefs[j].int_name)))
+							!strcasecmp(extern_records[i].name, import_definitions[j].int_name)))
 					{
-						externs[i].flags = EXT_MATCHEDIMPORT;
-						externs[i].impnum = j;
+						extern_records[i].flags = EXT_MATCHEDIMPORT;
+						extern_records[i].import = j;
 						impsreq++;
 					}
 				}
 			}
-			if (externs[i].flags == EXT_NOMATCH)
+			if (extern_records[i].flags == EXT_NOMATCH)
 			{
 				for (j = 0; j < expcount; j++)
 				{
-					if (!expdefs[j].pubdef) continue;
-					if (!strcmp(externs[i].name, expdefs[j].exp_name)
+					if (!export_definitions[j].pubdef) continue;
+					if (!strcmp(extern_records[i].name, export_definitions[j].exp_name)
 						|| ((case_sensitive == 0) &&
-							!strcasecmp(externs[i].name, expdefs[j].exp_name)))
+							!strcasecmp(extern_records[i].name, export_definitions[j].exp_name)))
 					{
-						externs[i].pubdef = expdefs[j].pubdef;
-						externs[i].flags = EXT_MATCHEDPUBLIC;
+						extern_records[i].pubdef = export_definitions[j].pubdef;
+						extern_records[i].flags = EXT_MATCHEDPUBLIC;
 					}
 				}
 			}
@@ -894,17 +896,17 @@ static void match_externs()
 		old_nummods = nummods;
 		for (i = 0; (i < expcount) && (nummods == old_nummods); i++)
 		{
-			if (!expdefs[i].pubdef)
+			if (!export_definitions[i].pubdef)
 			{
 				for (k = 0; k < libcount; ++k)
 				{
-					name = check_strdup(expdefs[i].int_name);
-					if (!(libfiles[k].flags & LIBF_CASESENSITIVE))
+					name = check_strdup(export_definitions[i].int_name);
+					if (!(library_files[k].flags & LIBF_CASESENSITIVE))
 					{
 						strupr(name);
 					}
 
-					if (listnode = binary_search(libfiles[k].symbols, libfiles[k].numsyms, name))
+					if (listnode = binary_search(library_files[k].symbols, library_files[k].num_syms, name))
 					{
 						load_lib_mod(k, listnode->count);
 						break;
@@ -915,17 +917,17 @@ static void match_externs()
 		}
 		for (i = 0; (i < extcount) && (nummods == old_nummods); i++)
 		{
-			if (externs[i].flags == EXT_NOMATCH)
+			if (extern_records[i].flags == EXT_NOMATCH)
 			{
 				for (k = 0; k < libcount; ++k)
 				{
-					name = check_strdup(externs[i].name);
-					if (!(libfiles[k].flags & LIBF_CASESENSITIVE))
+					name = check_strdup(extern_records[i].name);
+					if (!(library_files[k].flags & LIBF_CASESENSITIVE))
 					{
 						strupr(name);
 					}
 
-					if (listnode = binary_search(libfiles[k].symbols, libfiles[k].numsyms, name))
+					if (listnode = binary_search(library_files[k].symbols, library_files[k].num_syms, name))
 					{
 						load_lib_mod(k, listnode->count);
 						break;
@@ -936,34 +938,34 @@ static void match_externs()
 		}
 		for (i = 0; (i < pubcount) && (nummods == old_nummods); ++i)
 		{
-			for (k = 0; k < publics[i].count; ++k)
+			for (k = 0; k < public_entries[i].count; ++k)
 			{
-				pubdef = (PPUBLIC)publics[i].object[k];
-				if (!pubdef->aliasName) continue;
-				if (listnode = binary_search(publics, pubcount, pubdef->aliasName))
+				pubdef = (PPUBLIC)public_entries[i].object[k];
+				if (!pubdef->alias) continue;
+				if (listnode = binary_search(public_entries, pubcount, pubdef->alias))
 				{
 					for (j = 0; j < listnode->count; j++)
 					{
-						if ((((PPUBLIC)listnode->object[j])->modnum == pubdef->modnum)
-							&& !((PPUBLIC)listnode->object[j])->aliasName)
+						if ((((PPUBLIC)listnode->object[j])->mod == pubdef->mod)
+							&& !((PPUBLIC)listnode->object[j])->alias)
 						{
 							/* if we've found a match for the alias, then kill the alias */
-							free(pubdef->aliasName);
+							free(pubdef->alias);
 							(*pubdef) = (*((PPUBLIC)listnode->object[j]));
 							break;
 						}
 					}
 				}
-				if (!pubdef->aliasName) continue;
+				if (!pubdef->alias) continue;
 				for (k = 0; k < libcount; ++k)
 				{
-					name = check_strdup(pubdef->aliasName);
-					if (!(libfiles[k].flags & LIBF_CASESENSITIVE))
+					name = check_strdup(pubdef->alias);
+					if (!(library_files[k].flags & LIBF_CASESENSITIVE))
 					{
 						strupr(name);
 					}
 
-					if (listnode = binary_search(libfiles[k].symbols, libfiles[k].numsyms, name))
+					if (listnode = binary_search(library_files[k].symbols, library_files[k].num_syms, name))
 					{
 						load_lib_mod(k, listnode->count);
 						break;
@@ -979,7 +981,7 @@ static void match_externs()
 
 static void match_comdefs()
 {
-	int i, j, k;
+	int i, j;// , k;
 	int comseg;
 	int comfarseg;
 	PSORTENTRY listnode;
@@ -989,23 +991,23 @@ static void match_comdefs()
 
 	for (i = 0; i < comcount; i++)
 	{
-		if (!comdefs[i]) continue;
+		if (!common_definitions[i]) continue;
 		for (j = 0; j < i; j++)
 		{
-			if (!comdefs[j]) continue;
-			if (comdefs[i]->modnum != comdefs[j]->modnum) continue;
-			if (strcmp(comdefs[i]->name, comdefs[j]->name) == 0)
+			if (!common_definitions[j]) continue;
+			if (common_definitions[i]->modnum != common_definitions[j]->modnum) continue;
+			if (strcmp(common_definitions[i]->name, common_definitions[j]->name) == 0)
 			{
-				if (comdefs[i]->isFar != comdefs[j]->isFar)
+				if (common_definitions[i]->is_far != common_definitions[j]->is_far)
 				{
-					printf("Mismatched near/far type for COMDEF %s\n", comdefs[i]->name);
+					printf("Mismatched near/far type for COMDEF %s\n", common_definitions[i]->name);
 					exit(1);
 				}
-				if (comdefs[i]->length > comdefs[j]->length)
-					comdefs[j]->length = comdefs[i]->length;
-				free(comdefs[i]->name);
-				free(comdefs[i]);
-				comdefs[i] = 0;
+				if (common_definitions[i]->length > common_definitions[j]->length)
+					common_definitions[j]->length = common_definitions[i]->length;
+				free(common_definitions[i]->name);
+				free(common_definitions[i]);
+				common_definitions[i] = 0;
 				break;
 			}
 		}
@@ -1013,155 +1015,155 @@ static void match_comdefs()
 
 	for (i = 0; i < comcount; i++)
 	{
-		if (!comdefs[i]) continue;
-		if (listnode = binary_search(publics, pubcount, comdefs[i]->name))
+		if (!common_definitions[i]) continue;
+		if (listnode = binary_search(public_entries, pubcount, common_definitions[i]->name))
 		{
 			for (j = 0; j < listnode->count; j++)
 			{
 				/* local publics can only match externs in same module */
 				/* and global publics can only match global externs */
-				if ((((PPUBLIC)listnode->object[j])->modnum == comdefs[i]->modnum)
-					&& !((PPUBLIC)listnode->object[j])->aliasName)
+				if ((((PPUBLIC)listnode->object[j])->mod == common_definitions[i]->modnum)
+					&& !((PPUBLIC)listnode->object[j])->alias)
 				{
-					free(comdefs[i]->name);
-					free(comdefs[i]);
-					comdefs[i] = 0;
+					free(common_definitions[i]->name);
+					free(common_definitions[i]);
+					common_definitions[i] = 0;
 					break;
 				}
 			}
 		}
 	}
 
-	seglist = (PPSEG)check_realloc(seglist, (segcount + 1) * sizeof(PSEG));
-	seglist[segcount] = (PSEG)check_malloc(sizeof(SEG));
-	namelist = (PPCHAR)check_realloc(namelist, (namecount + 1) * sizeof(PCHAR));
-	namelist[namecount] = check_strdup("COMDEFS");
-	seglist[segcount]->nameindex = namecount;
-	seglist[segcount]->classindex = -1;
-	seglist[segcount]->overlayindex = -1;
-	seglist[segcount]->length = 0;
-	seglist[segcount]->data = NULL;
-	seglist[segcount]->datmask = NULL;
-	seglist[segcount]->attr = SEG_PRIVATE | SEG_PARA;
-	seglist[segcount]->winFlags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
+	segment_list = (PPSEG)check_realloc(segment_list, (segcount + 1) * sizeof(PSEG));
+	segment_list[segcount] = (PSEG)check_malloc(sizeof(SEG));
+	name_list = (PPCHAR)check_realloc(name_list, (name_count + 1) * sizeof(PCHAR));
+	name_list[name_count] = check_strdup("COMDEFS");
+	segment_list[segcount]->name_index = name_count;
+	segment_list[segcount]->class_index = -1;
+	segment_list[segcount]->overlay_index = -1;
+	segment_list[segcount]->length = 0;
+	segment_list[segcount]->data = NULL;
+	segment_list[segcount]->data_mask = NULL;
+	segment_list[segcount]->attributes = SEG_PRIVATE | SEG_PARA;
+	segment_list[segcount]->win_flags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
 	comseg = segcount;
 	segcount++;
-	namecount++;
+	name_count++;
 
 
 	for (i = 0; i < grpcount; i++)
 	{
-		if (!grplist[i]) continue;
-		if (grplist[i]->nameindex < 0) continue;
-		if (!strcmp("DGROUP", namelist[grplist[i]->nameindex]))
+		if (!group_list[i]) continue;
+		if (group_list[i]->name_index < 0) continue;
+		if (!strcmp("DGROUP", name_list[group_list[i]->name_index]))
 		{
-			if (grplist[i]->numsegs == 0) continue; /* don't add to an emtpy group */
+			if (group_list[i]->numsegs == 0) continue; /* don't add to an emtpy group */
 			/* because empty groups are special */
 			/* else add to group */
-			grplist[i]->segindex[grplist[i]->numsegs] = comseg;
-			grplist[i]->numsegs++;
+			group_list[i]->segindex[group_list[i]->numsegs] = comseg;
+			group_list[i]->numsegs++;
 			break;
 		}
 	}
 
-	seglist = (PPSEG)check_realloc(seglist, (segcount + 1) * sizeof(PSEG));
-	seglist[segcount] = (PSEG)check_malloc(sizeof(SEG));
-	namelist = (PPCHAR)check_realloc(namelist, (namecount + 1) * sizeof(PCHAR));
-	namelist[namecount] = check_strdup("FARCOMDEFS");
-	seglist[segcount]->nameindex = namecount;
-	seglist[segcount]->classindex = -1;
-	seglist[segcount]->overlayindex = -1;
-	seglist[segcount]->length = 0;
-	seglist[segcount]->data = NULL;
-	seglist[segcount]->datmask = NULL;
-	seglist[segcount]->attr = SEG_PRIVATE | SEG_PARA;
-	seglist[segcount]->winFlags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
-	namecount++;
+	segment_list = (PPSEG)check_realloc(segment_list, (segcount + 1) * sizeof(PSEG));
+	segment_list[segcount] = (PSEG)check_malloc(sizeof(SEG));
+	name_list = (PPCHAR)check_realloc(name_list, (name_count + 1) * sizeof(PCHAR));
+	name_list[name_count] = check_strdup("FARCOMDEFS");
+	segment_list[segcount]->name_index = name_count;
+	segment_list[segcount]->class_index = -1;
+	segment_list[segcount]->overlay_index = -1;
+	segment_list[segcount]->length = 0;
+	segment_list[segcount]->data = NULL;
+	segment_list[segcount]->data_mask = NULL;
+	segment_list[segcount]->attributes = SEG_PRIVATE | SEG_PARA;
+	segment_list[segcount]->win_flags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
+	name_count++;
 	comfarseg = segcount;
 	segcount++;
 
 	for (i = 0; i < comcount; i++)
 	{
-		if (!comdefs[i]) continue;
+		if (!common_definitions[i]) continue;
 		pubdef = (PPUBLIC)check_malloc(sizeof(PUBLIC));
-		if (comdefs[i]->isFar)
+		if (common_definitions[i]->is_far)
 		{
-			if (comdefs[i]->length > 65536)
+			if (common_definitions[i]->length > 0x10000)
 			{
-				seglist = (PPSEG)check_realloc(seglist, (segcount + 1) * sizeof(PSEG));
-				seglist[segcount] = (PSEG)check_malloc(sizeof(SEG));
-				namelist = (PPCHAR)check_realloc(namelist, (namecount + 1) * sizeof(PCHAR));
-				namelist[namecount] = check_strdup("FARCOMDEFS");
-				seglist[segcount]->nameindex = namecount;
-				seglist[segcount]->classindex = -1;
-				seglist[segcount]->overlayindex = -1;
-				seglist[segcount]->length = comdefs[i]->length;
-				seglist[segcount]->data = NULL;
-				seglist[segcount]->datmask =
-					(PUCHAR)check_malloc((comdefs[i]->length + 7) / 8);
-				for (j = 0; j < (comdefs[i]->length + 7) / 8; j++)
-					seglist[segcount]->datmask[j] = 0;
-				seglist[segcount]->attr = SEG_PRIVATE | SEG_PARA;
-				seglist[segcount]->winFlags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
-				namecount++;
-				pubdef->segnum = segcount;
+				segment_list = (PPSEG)check_realloc(segment_list, (segcount + 1) * sizeof(PSEG));
+				segment_list[segcount] = (PSEG)check_malloc(sizeof(SEG));
+				name_list = (PPCHAR)check_realloc(name_list, (name_count + 1) * sizeof(PCHAR));
+				name_list[name_count] = check_strdup("FARCOMDEFS");
+				segment_list[segcount]->name_index = name_count;
+				segment_list[segcount]->class_index = -1;
+				segment_list[segcount]->overlay_index = -1;
+				segment_list[segcount]->length = common_definitions[i]->length;
+				segment_list[segcount]->data = NULL;
+				segment_list[segcount]->data_mask =
+					(PUCHAR)check_malloc((common_definitions[i]->length + 7) / 8);
+				for (j = 0; j < (common_definitions[i]->length + 7) / 8; j++)
+					segment_list[segcount]->data_mask[j] = 0;
+				segment_list[segcount]->attributes = SEG_PRIVATE | SEG_PARA;
+				segment_list[segcount]->win_flags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
+				name_count++;
+				pubdef->segment = segcount;
 				segcount++;
-				pubdef->ofs = 0;
+				pubdef->offset = 0;
 			}
-			else if ((comdefs[i]->length + seglist[comfarseg]->length) > 65536)
+			else if ((common_definitions[i]->length + segment_list[comfarseg]->length) > 0x10000)
 			{
-				seglist[comfarseg]->datmask =
-					(PUCHAR)check_malloc((seglist[comfarseg]->length + 7) / 8);
-				for (j = 0; j < (seglist[comfarseg]->length + 7) / 8; j++)
-					seglist[comfarseg]->datmask[j] = 0;
+				segment_list[comfarseg]->data_mask =
+					(PUCHAR)check_malloc((segment_list[comfarseg]->length + 7) / 8);
+				for (j = 0; j < (segment_list[comfarseg]->length + 7) / 8; j++)
+					segment_list[comfarseg]->data_mask[j] = 0;
 
-				seglist = (PPSEG)check_realloc(seglist, (segcount + 1) * sizeof(PSEG));
-				seglist[segcount] = (PSEG)check_malloc(sizeof(SEG));
-				namelist = (PPCHAR)check_realloc(namelist, (namecount + 1) * sizeof(PCHAR));
-				namelist[namecount] = check_strdup("FARCOMDEFS");
-				seglist[segcount]->nameindex = namecount;
-				seglist[segcount]->classindex = -1;
-				seglist[segcount]->overlayindex = -1;
-				seglist[segcount]->length = comdefs[i]->length;
-				seglist[segcount]->data = NULL;
-				seglist[segcount]->datmask = NULL;
-				seglist[segcount]->attr = SEG_PRIVATE | SEG_PARA;
-				seglist[segcount]->winFlags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
+				segment_list = (PPSEG)check_realloc(segment_list, (segcount + 1) * sizeof(PSEG));
+				segment_list[segcount] = (PSEG)check_malloc(sizeof(SEG));
+				name_list = (PPCHAR)check_realloc(name_list, (name_count + 1) * sizeof(PCHAR));
+				name_list[name_count] = check_strdup("FARCOMDEFS");
+				segment_list[segcount]->name_index = name_count;
+				segment_list[segcount]->class_index = -1;
+				segment_list[segcount]->overlay_index = -1;
+				segment_list[segcount]->length = common_definitions[i]->length;
+				segment_list[segcount]->data = NULL;
+				segment_list[segcount]->data_mask = NULL;
+				segment_list[segcount]->attributes = SEG_PRIVATE | SEG_PARA;
+				segment_list[segcount]->win_flags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
 				comfarseg = segcount;
 				segcount++;
-				namecount++;
-				pubdef->segnum = comfarseg;
-				pubdef->ofs = 0;
+				name_count++;
+				pubdef->segment = comfarseg;
+				pubdef->offset = 0;
 			}
 			else
 			{
-				pubdef->segnum = comfarseg;
-				pubdef->ofs = seglist[comfarseg]->length;
-				seglist[comfarseg]->length += comdefs[i]->length;
+				pubdef->segment = comfarseg;
+				pubdef->offset = segment_list[comfarseg]->length;
+				segment_list[comfarseg]->length += common_definitions[i]->length;
 			}
 		}
 		else
 		{
-			pubdef->segnum = comseg;
-			pubdef->ofs = seglist[comseg]->length;
-			seglist[comseg]->length += comdefs[i]->length;
+			pubdef->segment = comseg;
+			pubdef->offset = segment_list[comseg]->length;
+			segment_list[comseg]->length += common_definitions[i]->length;
 		}
-		pubdef->modnum = comdefs[i]->modnum;
-		pubdef->grpnum = -1;
-		pubdef->typenum = 0;
-		pubdef->aliasName = NULL;
-		if (listnode = binary_search(publics, pubcount, comdefs[i]->name))
+		pubdef->mod = common_definitions[i]->modnum;
+		pubdef->group = -1;
+		pubdef->type = 0;
+		pubdef->alias = NULL;
+		if (listnode = binary_search(public_entries, pubcount, common_definitions[i]->name))
 		{
 			for (j = 0; j < listnode->count; ++j)
 			{
-				if (((PPUBLIC)listnode->object[j])->modnum == pubdef->modnum)
+				if (((PPUBLIC)listnode->object[j])->mod == pubdef->mod)
 				{
-					if (!((PPUBLIC)listnode->object[j])->aliasName)
+					if (!((PPUBLIC)listnode->object[j])->alias)
 					{
-						printf("Duplicate public symbol %s\n", comdefs[i]->name);
+						printf("Duplicate public symbol %s\n", common_definitions[i]->name);
 						exit(1);
 					}
-					free(((PPUBLIC)listnode->object[j])->aliasName);
+					free(((PPUBLIC)listnode->object[j])->alias);
 					(*((PPUBLIC)listnode->object[j])) = (*pubdef);
 					pubdef = NULL;
 					break;
@@ -1170,32 +1172,32 @@ static void match_comdefs()
 		}
 		if (pubdef)
 		{
-			sort_insert(&publics, &pubcount, comdefs[i]->name, pubdef);
+			sort_insert(&public_entries, &pubcount, common_definitions[i]->name, pubdef);
 		}
 	}
-	seglist[comfarseg]->datmask =
-		(PUCHAR)check_malloc((seglist[comfarseg]->length + 7) / 8);
-	for (j = 0; j < (seglist[comfarseg]->length + 7) / 8; j++)
-		seglist[comfarseg]->datmask[j] = 0;
+	segment_list[comfarseg]->data_mask =
+		(PUCHAR)check_malloc((segment_list[comfarseg]->length + 7) / 8);
+	for (j = 0; j < (segment_list[comfarseg]->length + 7) / 8; j++)
+		segment_list[comfarseg]->data_mask[j] = 0;
 
 
-	seglist[comseg]->datmask =
-		(PUCHAR)check_malloc((seglist[comseg]->length + 7) / 8);
-	for (j = 0; j < (seglist[comseg]->length + 7) / 8; j++)
-		seglist[comseg]->datmask[j] = 0;
+	segment_list[comseg]->data_mask =
+		(PUCHAR)check_malloc((segment_list[comseg]->length + 7) / 8);
+	for (j = 0; j < (segment_list[comseg]->length + 7) / 8; j++)
+		segment_list[comseg]->data_mask[j] = 0;
 
 
 	for (i = 0; i < expcount; i++)
 	{
-		if (expdefs[i].pubdef) continue;
-		if (listnode = binary_search(publics, pubcount, expdefs[i].int_name))
+		if (export_definitions[i].pubdef) continue;
+		if (listnode = binary_search(public_entries, pubcount, export_definitions[i].int_name))
 		{
 			for (j = 0; j < listnode->count; j++)
 			{
 				/* global publics only can match exports */
-				if (((PPUBLIC)listnode->object[j])->modnum == 0)
+				if (((PPUBLIC)listnode->object[j])->mod == 0)
 				{
-					expdefs[i].pubdef = (PPUBLIC)listnode->object[j];
+					export_definitions[i].pubdef = (PPUBLIC)listnode->object[j];
 					break;
 				}
 			}
@@ -1203,16 +1205,16 @@ static void match_comdefs()
 	}
 	for (i = 0; i < extcount; i++)
 	{
-		if (externs[i].flags != EXT_NOMATCH) continue;
-		if (listnode = binary_search(publics, pubcount, externs[i].name))
+		if (extern_records[i].flags != EXT_NOMATCH) continue;
+		if (listnode = binary_search(public_entries, pubcount, extern_records[i].name))
 		{
 			for (j = 0; j < listnode->count; j++)
 			{
 				/* global publics only can match exports */
-				if (((PPUBLIC)(listnode->object[j]))->modnum == externs[i].modnum)
+				if (((PPUBLIC)(listnode->object[j]))->mod == extern_records[i].mod)
 				{
-					externs[i].pubdef = (PPUBLIC)(listnode->object[j]);
-					externs[i].flags = EXT_MATCHEDPUBLIC;
+					extern_records[i].pubdef = (PPUBLIC)(listnode->object[j]);
+					extern_records[i].flags = EXT_MATCHEDPUBLIC;
 					break;
 				}
 			}
@@ -1228,40 +1230,40 @@ static void sort_segments()
 
 	for (i = 0; i < segcount; i++)
 	{
-		if (seglist[i])
+		if (segment_list[i])
 		{
-			if ((seglist[i]->attr & SEG_ALIGN) != SEG_ABS)
+			if ((segment_list[i]->attributes & SEG_ALIGN) != SEG_ABS)
 			{
-				seglist[i]->absframe = 0;
+				segment_list[i]->absolute_frame = 0;
 			}
 		}
 	}
 
 	outcount = 0;
 	base = 0;
-	outlist = check_malloc(sizeof(PSEG) * segcount);
+	out_list = check_malloc(sizeof(PSEG) * segcount);
 	for (i = 0; i < grpcount; i++)
 	{
-		if (grplist[i])
+		if (group_list[i])
 		{
-			grplist[i]->segnum = -1;
-			for (j = 0; j < grplist[i]->numsegs; j++)
+			group_list[i]->segnum = -1;
+			for (j = 0; j < group_list[i]->numsegs; j++)
 			{
-				k = grplist[i]->segindex[j];
-				if (!seglist[k])
+				k = group_list[i]->segindex[j];
+				if (!segment_list[k])
 				{
-					printf("Error - group %s contains non-existent segment\n", namelist[grplist[i]->nameindex]);
+					printf("Error - group %s contains non-existent segment\n", name_list[group_list[i]->name_index]);
 					exit(1);
 				}
 				/* don't add removed sections */
-				if (seglist[k]->winFlags & WINF_REMOVE)
+				if (segment_list[k]->win_flags & WINF_REMOVE)
 				{
 					continue;
 				}
 				/* add non-absolute segment */
-				if ((seglist[k]->attr & SEG_ALIGN) != SEG_ABS)
+				if ((segment_list[k]->attributes & SEG_ALIGN) != SEG_ABS)
 				{
-					switch (seglist[k]->attr & SEG_ALIGN)
+					switch (segment_list[k]->attributes & SEG_ALIGN)
 					{
 					case SEG_WORD:
 						align = 2;
@@ -1292,25 +1294,25 @@ static void sort_segments()
 						align = 1;
 						break;
 					}
-					if (align < objectAlign)
+					if (align < object_align)
 					{
-						align = objectAlign;
+						align = object_align;
 					}
 					base = (base + align - 1) & (0xffffffff - (align - 1));
-					seglist[k]->base = base;
-					if (seglist[k]->length > 0)
+					segment_list[k]->base = base;
+					if (segment_list[k]->length > 0)
 					{
-						base += seglist[k]->length;
-						if (seglist[k]->absframe != 0)
+						base += segment_list[k]->length;
+						if (segment_list[k]->absolute_frame != 0)
 						{
-							printf("Error - Segment %s part of more than one group\n", namelist[seglist[k]->nameindex]);
+							printf("Error - Segment %s part of more than one group\n", name_list[segment_list[k]->name_index]);
 							exit(1);
 						}
-						seglist[k]->absframe = 1;
-						seglist[k]->absofs = i + 1;
-						if (grplist[i]->segnum < 0)
+						segment_list[k]->absolute_frame = 1;
+						segment_list[k]->absolute_offset = i + 1;
+						if (group_list[i]->segnum < 0)
 						{
-							grplist[i]->segnum = k;
+							group_list[i]->segnum = k;
 						}
 						if (outcount == 0)
 						{
@@ -1318,10 +1320,10 @@ static void sort_segments()
 						}
 						else
 						{
-							outlist[outcount - 1]->virtualSize = seglist[k]->base -
-								outlist[outcount - 1]->base;
+							out_list[outcount - 1]->virtual_size = segment_list[k]->base -
+								out_list[outcount - 1]->base;
 						}
-						outlist[outcount] = seglist[k];
+						out_list[outcount] = segment_list[k];
 						outcount++;
 					}
 				}
@@ -1330,18 +1332,18 @@ static void sort_segments()
 	}
 	for (i = 0; i < segcount; i++)
 	{
-		if (seglist[i])
+		if (segment_list[i])
 		{
 			/* don't add removed sections */
-			if (seglist[i]->winFlags & WINF_REMOVE)
+			if (segment_list[i]->win_flags & WINF_REMOVE)
 			{
 				continue;
 			}
 			/* add non-absolute segment, not already dealt with */
-			if (((seglist[i]->attr & SEG_ALIGN) != SEG_ABS) &&
-				!seglist[i]->absframe)
+			if (((segment_list[i]->attributes & SEG_ALIGN) != SEG_ABS) &&
+				!segment_list[i]->absolute_frame)
 			{
-				switch (seglist[i]->attr & SEG_ALIGN)
+				switch (segment_list[i]->attributes & SEG_ALIGN)
 				{
 				case SEG_WORD:
 				case SEG_BYTE:
@@ -1359,46 +1361,46 @@ static void sort_segments()
 					align = 1;
 					break;
 				}
-				if (align < objectAlign)
+				if (align < object_align)
 				{
-					align = objectAlign;
+					align = object_align;
 				}
 				base = (base + align - 1) & (0xffffffff - (align - 1));
-				seglist[i]->base = base;
-				if (seglist[i]->length > 0)
+				segment_list[i]->base = base;
+				if (segment_list[i]->length > 0)
 				{
-					base += seglist[i]->length;
-					seglist[i]->absframe = 1;
-					seglist[i]->absofs = 0;
+					base += segment_list[i]->length;
+					segment_list[i]->absolute_frame = 1;
+					segment_list[i]->absolute_offset = 0;
 					if (outcount == 0)
 					{
 						baseSeg = i;
 					}
 					else
 					{
-						outlist[outcount - 1]->virtualSize = seglist[i]->base -
-							outlist[outcount - 1]->base;
+						out_list[outcount - 1]->virtual_size = segment_list[i]->base -
+							out_list[outcount - 1]->base;
 					}
-					outlist[outcount] = seglist[i];
+					out_list[outcount] = segment_list[i];
 					outcount++;
 				}
 			}
-			else if ((seglist[i]->attr & SEG_ALIGN) == SEG_ABS)
+			else if ((segment_list[i]->attributes & SEG_ALIGN) == SEG_ABS)
 			{
-				seglist[i]->base = (seglist[i]->absframe << 4) + seglist[i]->absofs;
+				segment_list[i]->base = (segment_list[i]->absolute_frame << 4) + segment_list[i]->absolute_offset;
 			}
 		}
 	}
 	/* build size of last segment in output list */
 	if (outcount)
 	{
-		outlist[outcount - 1]->virtualSize =
-			(outlist[outcount - 1]->length + objectAlign - 1) &
-			(0xffffffff - (objectAlign - 1));
+		out_list[outcount - 1]->virtual_size =
+			(out_list[outcount - 1]->length + object_align - 1) &
+			(0xffffffff - (object_align - 1));
 	}
 	for (i = 0; i < grpcount; i++)
 	{
-		if (grplist[i] && (grplist[i]->segnum < 0)) grplist[i]->segnum = baseSeg;
+		if (group_list[i] && (group_list[i]->segnum < 0)) group_list[i]->segnum = baseSeg;
 	}
 }
 
@@ -1409,20 +1411,20 @@ static void load_files()
 
 	for (i = 0; i < filecount; i++)
 	{
-		afile = fopen(filename[i], "rb");
-		if (!strchr(filename[i], PATH_CHAR))
+		a_file = fopen(file_name[i], "rb");
+		if (!strchr(file_name[i], PATH_CHAR))
 		{
 			/* if no path specified, search library path list */
-			for (j = 0; !afile && j < libPathCount; j++)
+			for (j = 0; !a_file && j < lib_path_count; j++)
 			{
-				name = (char*)check_malloc(strlen(libPath[j]) + strlen(filename[i]) + 1);
-				strcpy(name, libPath[j]);
-				strcat(name, filename[i]);
-				afile = fopen(name, "rb");
-				if (afile)
+				name = (char*)check_malloc(strlen(lib_path[j]) + strlen(file_name[i]) + 1);
+				strcpy(name, lib_path[j]);
+				strcat(name, file_name[i]);
+				a_file = fopen(name, "rb");
+				if (a_file)
 				{
-					free(filename[i]);
-					filename[i] = name;
+					free(file_name[i]);
+					file_name[i] = name;
 					name = NULL;
 				}
 				else
@@ -1432,51 +1434,51 @@ static void load_files()
 				}
 			}
 		}
-		if (!afile)
+		if (!a_file)
 		{
-			printf("Error opening file %s\n", filename[i]);
+			printf("Error opening file %s\n", file_name[i]);
 			exit(1);
 		}
 		for (k = 0; k < i; ++k)
 		{
-			if (!strcmp(filename[i], filename[k])) break;
+			if (!strcmp(file_name[i], file_name[k])) break;
 		}
 		if (k != i)
 		{
-			fclose(afile);
+			fclose(a_file);
 			continue;
 		}
 
-		filepos = 0;
-		printf("Loading file %s\n", filename[i]);
-		j = fgetc(afile);
-		fseek(afile, 0, SEEK_SET);
+		file_position = 0;
+		printf("Loading file %s\n", file_name[i]);
+		j = fgetc(a_file);
+		fseek(a_file, 0, SEEK_SET);
 		switch (j)
 		{
 		case LIBHDR:
-			load_lib(filename[i], afile);
+			load_lib(file_name[i], a_file);
 			break;
 		case THEADR:
 		case LHEADR:
-			load_mod(filename[i], afile);
+			load_mod(file_name[i], a_file);
 			break;
 		case 0:
-			load_resource(filename[i], afile);
+			load_resource(file_name[i], a_file);
 			break;
 		case 0x4c:
 		case 0x4d:
 		case 0x4e:
-			load_coff(filename[i], afile);
+			load_coff(file_name[i], a_file);
 			break;
 		case 0x21:
-			load_coff_lib(filename[i], afile);
+			load_coff_lib(file_name[i], a_file);
 			break;
 		default:
 			printf("Unknown file type\n");
-			fclose(afile);
+			fclose(a_file);
 			exit(1);
 		}
-		fclose(afile);
+		fclose(a_file);
 	}
 }
 
@@ -1485,130 +1487,132 @@ static void generate_map()
 	long i, j;
 	PPUBLIC q;
 
-	afile = fopen(mapname, "wt");
-	if (!afile)
+	a_file = fopen(map_name, "wt");
+	if (!a_file)
 	{
-		printf("Error opening map file %s\n", mapname);
+		printf("Error opening map file %s\n", map_name);
 		exit(1);
 	}
-	printf("Generating map file %s\n", mapname);
+	printf("Generating map file %s\n", map_name);
 
 	for (i = 0; i < segcount; i++)
 	{
-		if (seglist[i])
+		if (segment_list[i])
 		{
-			fprintf(afile, "SEGMENT %s ",
-				(seglist[i]->nameindex >= 0) ? namelist[seglist[i]->nameindex] : "");
-			switch (seglist[i]->attr & SEG_COMBINE)
+			fprintf(a_file, "SEGMENT %s ",
+				(segment_list[i]->name_index >= 0) ? name_list[segment_list[i]->name_index] : "");
+			switch (segment_list[i]->attributes & SEG_COMBINE)
 			{
 			case SEG_PRIVATE:
-				fprintf(afile, "PRIVATE ");
+				fprintf(a_file, "PRIVATE ");
 				break;
 			case SEG_PUBLIC:
-				fprintf(afile, "PUBLIC ");
+				fprintf(a_file, "PUBLIC ");
 				break;
 			case SEG_PUBLIC2:
-				fprintf(afile, "PUBLIC(2) ");
+				fprintf(a_file, "PUBLIC(2) ");
 				break;
 			case SEG_STACK:
-				fprintf(afile, "STACK ");
+				fprintf(a_file, "STACK ");
 				break;
 			case SEG_COMMON:
-				fprintf(afile, "COMMON ");
+				fprintf(a_file, "COMMON ");
 				break;
 			case SEG_PUBLIC3:
-				fprintf(afile, "PUBLIC(3) ");
+				fprintf(a_file, "PUBLIC(3) ");
 				break;
 			default:
-				fprintf(afile, "unknown ");
+				fprintf(a_file, "unknown ");
 				break;
 			}
-			if (seglist[i]->attr & SEG_USE32)
+			if (segment_list[i]->attributes & SEG_USE32)
 			{
-				fprintf(afile, "USE32 ");
+				fprintf(a_file, "USE32 ");
 			}
 			else
 			{
-				fprintf(afile, "USE16 ");
+				fprintf(a_file, "USE16 ");
 			}
-			switch (seglist[i]->attr & SEG_ALIGN)
+			switch (segment_list[i]->attributes & SEG_ALIGN)
 			{
 			case SEG_ABS:
-				fprintf(afile, "AT 0%04lXh ", seglist[i]->absframe);
+				fprintf(a_file, "AT 0%04lXh ", segment_list[i]->absolute_frame);
 				break;
 			case SEG_BYTE:
-				fprintf(afile, "BYTE ");
+				fprintf(a_file, "BYTE ");
 				break;
 			case SEG_WORD:
-				fprintf(afile, "WORD ");
+				fprintf(a_file, "WORD ");
 				break;
 			case SEG_PARA:
-				fprintf(afile, "PARA ");
+				fprintf(a_file, "PARA ");
 				break;
 			case SEG_PAGE:
-				fprintf(afile, "PAGE ");
+				fprintf(a_file, "PAGE ");
 				break;
 			case SEG_DWORD:
-				fprintf(afile, "DWORD ");
+				fprintf(a_file, "DWORD ");
 				break;
 			case SEG_MEMPAGE:
-				fprintf(afile, "MEMPAGE ");
+				fprintf(a_file, "MEMPAGE ");
 				break;
 			default:
-				fprintf(afile, "unknown ");
+				fprintf(a_file, "unknown ");
 			}
-			if (seglist[i]->classindex >= 0)
-				fprintf(afile, "'%s'\n", namelist[seglist[i]->classindex]);
+			if (segment_list[i]->class_index >= 0)
+				fprintf(a_file, "'%s'\n", name_list[segment_list[i]->class_index]);
 			else
-				fprintf(afile, "\n");
-			fprintf(afile, "  at %08lX, length %08lX\n", seglist[i]->base, seglist[i]->length);
+				fprintf(a_file, "\n");
+			fprintf(a_file, "  at %08lX, length %08lX\n", segment_list[i]->base, segment_list[i]->length);
 		}
 	}
 	for (i = 0; i < grpcount; i++)
 	{
-		if (!grplist[i]) continue;
-		fprintf(afile, "\nGroup %s:\n", namelist[grplist[i]->nameindex]);
-		for (j = 0; j < grplist[i]->numsegs; j++)
+		if (!group_list[i]) continue;
+		fprintf(a_file, "\nGroup %s:\n", name_list[group_list[i]->name_index]);
+		for (j = 0; j < group_list[i]->numsegs; j++)
 		{
-			fprintf(afile, "    %s\n", namelist[seglist[grplist[i]->segindex[j]]->nameindex]);
+			fprintf(a_file, "    %s\n", name_list[segment_list[group_list[i]->segindex[j]]->name_index]);
 		}
 	}
 
 	if (pubcount)
 	{
-		fprintf(afile, "\npublics:\n");
+		fprintf(a_file, "\npublics:\n");
 	}
 	for (i = 0; i < pubcount; ++i)
 	{
-		for (j = 0; j < publics[i].count; ++j)
+		for (j = 0; j < public_entries[i].count; ++j)
 		{
-			q = (PPUBLIC)publics[i].object[j];
-			if (q->modnum) continue;
-			fprintf(afile, "%s at %s:%08lX\n",
-				publics[i].id,
-				(q->segnum >= 0) ? namelist[seglist[q->segnum]->nameindex] : "Absolute",
-				q->ofs);
+			q = (PPUBLIC)public_entries[i].object[j];
+			if (q->mod) continue;
+
+			fprintf(a_file, "%s at %s:%08lX\n",
+				public_entries[i].id,
+				(q->segment >= 0) ? name_list[segment_list[q->segment]->name_index] 
+				: "Absolute",
+				q->offset);
 		}
 	}
 
 	if (expcount)
 	{
-		fprintf(afile, "\n %li exports:\n", expcount);
+		fprintf(a_file, "\n %li exports:\n", expcount);
 		for (i = 0; i < expcount; i++)
 		{
-			fprintf(afile, "%s(%i)=%s\n", expdefs[i].exp_name, expdefs[i].ordinal, expdefs[i].int_name);
+			fprintf(a_file, "%s(%i)=%s\n", export_definitions[i].exp_name, export_definitions[i].ordinal, export_definitions[i].int_name);
 		}
 	}
 	if (impcount)
 	{
-		fprintf(afile, "\n %li imports:\n", impcount);
+		fprintf(a_file, "\n %li imports:\n", impcount);
 		for (i = 0; i < impcount; i++)
 		{
-			fprintf(afile, "%s=%s:%s(%i)\n", impdefs[i].int_name, impdefs[i].mod_name, impdefs[i].flags == 0 ? impdefs[i].imp_name : "",
-				impdefs[i].flags == 0 ? 0 : impdefs[i].ordinal);
+			fprintf(a_file, "%s=%s:%s(%i)\n", import_definitions[i].int_name, import_definitions[i].mod_name, import_definitions[i].flags == 0 ? import_definitions[i].imp_name : "",
+				import_definitions[i].flags == 0 ? 0 : import_definitions[i].ordinal);
 		}
 	}
-	fclose(afile);
+	fclose(a_file);
 }
 
 int main(int argc, char* argv[])
@@ -1616,7 +1620,7 @@ int main(int argc, char* argv[])
 	long i, j;
 	int isend;
 	char* libList;
-	PPUBLIC q;
+	///PPUBLIC q;
 
 	printf("ALINK v1.6 (C) Copyright 1998-9 Anthony A.J. Williams.\n");
 	printf("All Rights Reserved\n\n");
@@ -1631,20 +1635,20 @@ int main(int argc, char* argv[])
 			{
 				if (i - j)
 				{
-					libPath = (PCHAR*)check_realloc(libPath, (libPathCount + 1) * sizeof(PCHAR));
+					lib_path = (PCHAR*)check_realloc(lib_path, (lib_path_count + 1) * sizeof(PCHAR));
 					libList[i] = 0;
 					if (libList[i - 1] == PATH_CHAR)
 					{
-						libPath[libPathCount] = check_strdup(libList + j);
+						lib_path[lib_path_count] = check_strdup(libList + j);
 					}
 					else
 					{
-						libPath[libPathCount] = (PCHAR)check_malloc(i - j + 2);
-						strcpy(libPath[libPathCount], libList + j);
-						libPath[libPathCount][i - j] = PATH_CHAR;
-						libPath[libPathCount][i - j + 1] = 0;
+						lib_path[lib_path_count] = (PCHAR)check_malloc(i - j + 2);
+						strcpy(lib_path[lib_path_count], libList + j);
+						lib_path[lib_path_count][i - j] = PATH_CHAR;
+						lib_path[lib_path_count][i - j + 1] = 0;
 					}
-					libPathCount++;
+					lib_path_count++;
 				}
 				j = i + 1;
 			}
@@ -1660,73 +1664,73 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	if (!outname)
+	if (!out_name)
 	{
 		//first obj's name as default name
-		outname = check_malloc(strlen(filename[0]) + 1 + 4);
-		strcpy(outname, filename[0]);
-		i = strlen(outname);
-		while ((i >= 0) && (outname[i] != '.') && (outname[i] != PATH_CHAR) && (outname[i] != ':'))
+		out_name = check_malloc(strlen(file_name[0]) + 1 + 4);
+		strcpy(out_name, file_name[0]);
+		i = (long)strlen(out_name);
+		while ((i >= 0) && (out_name[i] != '.') && (out_name[i] != PATH_CHAR) && (out_name[i] != ':'))
 		{
 			i--;
 		}
-		if (outname[i] == '.')
+		if (out_name[i] == '.')
 		{
-			outname[i] = 0;
+			out_name[i] = 0;
 		}
 	}
-	i = strlen(outname);
-	while ((i >= 0) && (outname[i] != '.') && (outname[i] != PATH_CHAR) && (outname[i] != ':'))
+	i = (long)strlen(out_name);
+	while ((i >= 0) && (out_name[i] != '.') && (out_name[i] != PATH_CHAR) && (out_name[i] != ':'))
 	{
 		i--;
 	}
-	if (outname[i] != '.')
+	if (out_name[i] != '.')
 	{
 		switch (output_type)
 		{
 		case OUTPUT_EXE:
 		case OUTPUT_PE:
-			if (!buildDll)
+			if (!build_dll)
 			{
-				strcat(outname, ".exe");
+				strcat(out_name, ".exe");
 			}
 			else
 			{
-				strcat(outname, ".dll");
+				strcat(out_name, ".dll");
 			}
 			break;
 		case OUTPUT_COM:
-			strcat(outname, ".com");
+			strcat(out_name, ".com");
 			break;
 		default:
 			break;
 		}
 	}
 
-	if (mapfile)
+	if (map_file)
 	{
-		if (!mapname)
+		if (!map_name)
 		{
-			mapname = check_malloc(strlen(outname) + 1 + 4);
-			strcpy(mapname, outname);
-			i = strlen(mapname);
-			while ((i >= 0) && (mapname[i] != '.') && (mapname[i] != PATH_CHAR) && (mapname[i] != ':'))
+			map_name = check_malloc(strlen(out_name) + 1 + 4);
+			strcpy(map_name, out_name);
+			i = (long)strlen(map_name);
+			while ((i >= 0) && (map_name[i] != '.') && (map_name[i] != PATH_CHAR) && (map_name[i] != ':'))
 			{
 				i--;
 			}
-			if (mapname[i] != '.')
+			if (map_name[i] != '.')
 			{
-				i = strlen(mapname);
+				i = (long)strlen(map_name);
 			}
-			strcpy(mapname + i, ".map");
+			strcpy(map_name + i, ".map");
 		}
 	}
 	else
 	{
-		if (mapname)
+		if (map_name)
 		{
-			free(mapname);
-			mapname = 0;
+			free(map_name);
+			map_name = 0;
 		}
 	}
 
@@ -1744,33 +1748,33 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	if (entryPoint)
+	if (entry_point_function_name)
 	{
 		if (!case_sensitive)
 		{
-			strupr(entryPoint);
+			strupr(entry_point_function_name);
 		}
 
-		if (gotstart)
+		if (got_start_address)
 		{
 			printf("Warning, overriding entry point from Command Line\n");
 		}
 		/* define an external reference for entry point */
-		externs = check_realloc(externs, (extcount + 1) * sizeof(EXTREC));
-		externs[extcount].name = entryPoint;
-		externs[extcount].typenum = -1;
-		externs[extcount].pubdef = NULL;
-		externs[extcount].flags = EXT_NOMATCH;
-		externs[extcount].modnum = 0;
+		extern_records = check_realloc(extern_records, (extcount + 1) * sizeof(EXTREC));
+		extern_records[extcount].name = entry_point_function_name;
+		extern_records[extcount].type = -1;
+		extern_records[extcount].pubdef = NULL;
+		extern_records[extcount].flags = EXT_NOMATCH;
+		extern_records[extcount].mod = 0;
 
 		/* point start address to this external */
-		startaddr.ftype = REL_EXTDISP;
-		startaddr.frame = extcount;
-		startaddr.ttype = REL_EXTONLY;
-		startaddr.target = extcount;
+		start_address.ftype = REL_EXTDISP;
+		start_address.frame = extcount;
+		start_address.ttype = REL_EXTONLY;
+		start_address.target = extcount;
 
 		extcount++;
-		gotstart = TRUE;
+		got_start_address = TRUE;
 	}
 
 	match_externs();
@@ -1781,55 +1785,55 @@ int main(int argc, char* argv[])
 
 	for (i = 0; i < expcount; i++)
 	{
-		if (!expdefs[i].pubdef)
+		if (!export_definitions[i].pubdef)
 		{
-			printf("Unresolved export %s=%s\n", expdefs[i].exp_name, expdefs[i].int_name);
-			errcount++;
+			printf("Unresolved export %s=%s\n", export_definitions[i].exp_name, export_definitions[i].int_name);
+			error_count++;
 		}
-		else if (expdefs[i].pubdef->aliasName)
+		else if (export_definitions[i].pubdef->alias)
 		{
-			printf("Unresolved export %s=%s, with alias %s\n", expdefs[i].exp_name, expdefs[i].int_name, expdefs[i].pubdef->aliasName);
-			errcount++;
+			printf("Unresolved export %s=%s, with alias %s\n", export_definitions[i].exp_name, export_definitions[i].int_name, export_definitions[i].pubdef->alias);
+			error_count++;
 		}
 
 	}
 
 	for (i = 0; i < extcount; i++)
 	{
-		if (externs[i].flags == EXT_NOMATCH)
+		if (extern_records[i].flags == EXT_NOMATCH)
 		{
-			printf("Unresolved external %s\n", externs[i].name);
-			errcount++;
+			printf("Unresolved external %s\n", extern_records[i].name);
+			error_count++;
 		}
-		else if (externs[i].flags == EXT_MATCHEDPUBLIC)
+		else if (extern_records[i].flags == EXT_MATCHEDPUBLIC)
 		{
-			if (externs[i].pubdef->aliasName)
+			if (extern_records[i].pubdef->alias)
 			{
-				printf("Unresolved external %s with alias %s\n", externs[i].name, externs[i].pubdef->aliasName);
-				errcount++;
+				printf("Unresolved external %s with alias %s\n", extern_records[i].name, extern_records[i].pubdef->alias);
+				error_count++;
 			}
 		}
 	}
 
-	if (errcount != 0)
+	if (error_count != 0)
 	{
 		exit(1);
 	}
 
-	combine_blocks(outname);
+	combine_blocks(out_name);
 	sort_segments();
 
-	if (mapfile) generate_map();
+	if (map_file) generate_map();
 	switch (output_type)
 	{
 	case OUTPUT_COM:
-		output_com_file(outname);
+		output_com_file(out_name);
 		break;
 	case OUTPUT_EXE:
-		output_exe_file(outname);
+		output_exe_file(out_name);
 		break;
 	case OUTPUT_PE:
-		output_win32_file(outname);
+		output_win32_file(out_name);
 		break;
 	default:
 		printf("Invalid output type\n");
