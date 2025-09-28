@@ -58,7 +58,7 @@ PDATABLOCK build_lidata(long* bufofs)
 	return p;
 }
 
-void emit_lidata(PCHAR fname, PDATABLOCK p, long segnum, long* ofs)
+void emit_lidata(PCHAR fname, PDATABLOCK p, long segment_number, long* ofs)
 {
 	long i, j;
 
@@ -68,32 +68,32 @@ void emit_lidata(PCHAR fname, PDATABLOCK p, long segnum, long* ofs)
 		{
 			for (j = 0; j < p->blocks; j++)
 			{
-				emit_lidata(fname, ((PPDATABLOCK)p->data)[j], segnum, ofs);
+				emit_lidata(fname, ((PPDATABLOCK)p->data)[j], segment_number, ofs);
 			}
 		}
 		else
 		{
 			for (j = 0; j < ((PUCHAR)p->data)[0]; j++, (*ofs)++)
 			{
-				if ((*ofs) >= segment_list[segnum]->length)
+				if ((*ofs) >= segment_list[segment_number]->length)
 				{
 					report_error(fname, ERR_INV_DATA);
 				}
-				if (get_n_bit(segment_list[segnum]->data_mask, *ofs))
+				if (get_n_bit(segment_list[segment_number]->data_mask, *ofs))
 				{
-					if (segment_list[segnum]->data[*ofs] != ((PUCHAR)p->data)[j + 1])
+					if (segment_list[segment_number]->data[*ofs] != ((PUCHAR)p->data)[j + 1])
 					{
 						report_error(fname, ERR_OVERWRITE);
 					}
 				}
-				segment_list[segnum]->data[*ofs] = ((PUCHAR)p->data)[j + 1];
-				set_n_bit(segment_list[segnum]->data_mask, *ofs);
+				segment_list[segment_number]->data[*ofs] = ((PUCHAR)p->data)[j + 1];
+				set_n_bit(segment_list[segment_number]->data_mask, *ofs);
 			}
 		}
 	}
 }
 
-void reloc_lidata(PCHAR fname, PDATABLOCK p, long* offset, PRELOC r)
+void reloc_lidata(PCHAR fname, PDATABLOCK p, long* offset, PRELOC reloc)
 {
 	long i, j;
 
@@ -103,12 +103,12 @@ void reloc_lidata(PCHAR fname, PDATABLOCK p, long* offset, PRELOC r)
 		{
 			for (j = 0; j < p->blocks; j++)
 			{
-				reloc_lidata(fname, ((PPDATABLOCK)p->data)[j], offset, r);
+				reloc_lidata(fname, ((PPDATABLOCK)p->data)[j], offset, reloc);
 			}
 		}
 		else
 		{
-			j = r->offset - p->data_offset;
+			j = reloc->offset - p->data_offset;
 			if (j >= 0)
 			{
 				if ((j < 5) || ((li_le == PREV_LI32) && (j < 7)))
@@ -117,8 +117,9 @@ void reloc_lidata(PCHAR fname, PDATABLOCK p, long* offset, PRELOC r)
 				}
 				relocations = (PPRELOC)check_realloc(relocations, (fixcount + 1) * sizeof(PRELOC));
 				relocations[fixcount] = check_malloc(sizeof(RELOC));
-				memcpy(relocations[fixcount], r, sizeof(RELOC));
+				memcpy(relocations[fixcount], reloc, sizeof(RELOC));
 				relocations[fixcount]->offset = *offset + j;
+				relocations[fixcount]->offset_in_file = relocations[fixcount]->offset;
 				fixcount++;
 				*offset += ((PUCHAR)p->data)[0];
 			}
@@ -393,7 +394,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 	long modpos;
 	long done;
 	long i, j, k;
-	long segnum, grpnum;
+	long segment_number, grpnum;
 	PRELOC relocation;
 	PPUBLIC pubdef;
 	PCHAR name, aliasName;
@@ -470,23 +471,23 @@ long load_mod(PCHAR fname, FILE* objfile)
 				case COMENT_LIB_SPEC:
 				case COMENT_DEFLIB:
 				{
-					file_name = check_realloc(file_name, (filecount + 1) * sizeof(PCHAR));
-					file_name[filecount] = (PCHAR)check_malloc(record_length - 1 + 4);
+					owner_file_name = check_realloc(owner_file_name, (filecount + 1) * sizeof(PCHAR));
+					owner_file_name[filecount] = (PCHAR)check_malloc(record_length - 1 + 4);
 					/* get filename */
 					for (i = 0; i < record_length - 2; i++)
 					{
-						file_name[filecount][i] = buffer[i + 2];
+						owner_file_name[filecount][i] = buffer[i + 2];
 					}
-					file_name[filecount][record_length - 2] = 0;
-					for (i = (long)strlen(file_name[filecount]) - 1;
-						(i >= 0) && (file_name[filecount][i] != PATH_CHAR);
+					owner_file_name[filecount][record_length - 2] = 0;
+					for (i = (long)strlen(owner_file_name[filecount]) - 1;
+						(i >= 0) && (owner_file_name[filecount][i] != PATH_CHAR);
 						i--)
 					{
-						if (file_name[filecount][i] == '.') break;
+						if (owner_file_name[filecount][i] == '.') break;
 					}
-					if (((i >= 0) && (file_name[filecount][i] != '.')) || (i < 0))
+					if (((i >= 0) && (owner_file_name[filecount][i] != '.')) || (i < 0))
 					{
-						strcat(file_name[filecount], ".lib");
+						strcat(owner_file_name[filecount], ".lib");
 					}
 					/* add default library to file list */
 					filecount++;
@@ -715,6 +716,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 				}
 			}
 			segment_list[segcount]->name_index = get_index(buffer, &j) - 1;
+			segment_list[segcount]->name = name_list[segment_list[segcount]->name_index];
 			segment_list[segcount]->class_index = get_index(buffer, &j) - 1;
 			segment_list[segcount]->overlay_index = get_index(buffer, &j) - 1;
 			segment_list[segcount]->order_index = -1;
@@ -733,6 +735,8 @@ long load_mod(PCHAR fname, FILE* objfile)
 			if ((segment_list[segcount]->attributes & SEG_ALIGN) != SEG_ABS)
 			{
 				segment_list[segcount]->data = check_malloc(segment_list[segcount]->length);
+				//segment_list[segcount]->data[0] = segcount;
+				//memset(segment_list[segcount]->data, 0, segment_list[segcount]->length);
 				segment_list[segcount]->data_mask = check_malloc(((segment_list[segcount]->length + 7) >>3));
 				for (i = 0; i < ((segment_list[segcount]->length + 7) >> 3); i++)
 				{
@@ -885,21 +889,21 @@ long load_mod(PCHAR fname, FILE* objfile)
 			{
 				grpnum += grpmin;
 			}
-			segnum = get_index(buffer, &j) - 1;
-			if (segnum < 0)
+			segment_number = get_index(buffer, &j) - 1;
+			if (segment_number < 0)
 			{
 				j += 2;
 			}
 			else
 			{
-				segnum += segmin;
+				segment_number += segmin;
 			}
 			for (; j < record_length;)
 			{
 				pubdef = (PPUBLIC)check_malloc(sizeof(PUBLIC));
 				pubdef->alias = NULL;
 				pubdef->group = grpnum;
-				pubdef->segment = segnum;
+				pubdef->segment = segment_number;
 				name = check_malloc(buffer[j] + 1);
 				k = buffer[j];
 				j++;
@@ -978,6 +982,8 @@ long load_mod(PCHAR fname, FILE* objfile)
 				extern_records[extcount].type = get_index(buffer, &j);
 				extern_records[extcount].pubdef = NULL;
 				extern_records[extcount].flags = EXT_NOMATCH;
+				extern_records[extcount].import = 0;
+
 				if ((record_type == LEXTDEF) || (record_type == LEXTDEF32))
 				{
 					extern_records[extcount].mod = nummods;
@@ -1037,10 +1043,12 @@ long load_mod(PCHAR fname, FILE* objfile)
 						report_error(fname, ERR_BAD_FIXUP);
 					}
 					relocation = check_malloc(sizeof(RELOC));
+					relocation->owner_file_name = fname;
 					relocation->rtype = (buffer[j] >> 2);
 					relocation->offset = (((UINT)buffer[j]) << 8) + buffer[j + 1];
 					j += 2;
 					relocation->offset &= 0x3ff;
+					relocation->offset_in_file = relocation->offset;
 					relocation->rtype ^= FIX_SELFREL;
 					relocation->rtype &= FIX_MASK;
 					switch (relocation->rtype)
@@ -1138,6 +1146,7 @@ long load_mod(PCHAR fname, FILE* objfile)
 					relocations[fixcount]->offset += (buffer[j] + (((UINT)buffer[j + 1]) << 8)) << 16;
 					j += 2;
 				}
+				relocations[fixcount]->offset_in_file = relocations[fixcount]->offset;
 				relocations[fixcount]->segment = i;
 				relocations[fixcount]->target = i;
 				relocations[fixcount]->frame = i;
@@ -1396,8 +1405,8 @@ void load_lib(PCHAR libname, FILE* libfile)
 	library_files = check_realloc(library_files, (libcount + 1) * sizeof(LIBFILE));
 	p = &library_files[libcount];
 
-	p->file_name = check_malloc(strlen(libname) + 1);
-	strcpy(p->file_name, libname);
+	p->owner_file_name = check_malloc(strlen(libname) + 1);
+	strcpy(p->owner_file_name, libname);
 
 	if (fread(buffer, 1, 3, libfile) != 3)
 	{
@@ -1481,20 +1490,20 @@ void load_lib_mod(UINT libnum, UINT modpage)
 		if (p->mod_list[i] == modpage) return;
 	}
 
-	libfile = fopen(p->file_name, "rb");
+	libfile = fopen(p->owner_file_name, "rb");
 	if (!libfile)
 	{
-		printf("Error opening file %s\n", p->file_name);
+		printf("Error opening file %s\n", p->owner_file_name);
 		exit(1);
 	}
 	fseek(libfile, modpage * p->block_size, SEEK_SET);
 	switch (p->lib_type)
 	{
 	case 'O':
-		load_mod(p->file_name, libfile);
+		load_mod(p->owner_file_name, libfile);
 		break;
 	case 'C':
-		load_coff_lib_mod(p->file_name, p, libfile);
+		load_coff_lib_mod(p->owner_file_name, p, libfile);
 		break;
 	default:
 		printf("Unknown library file format\n");

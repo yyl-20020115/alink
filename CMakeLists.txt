@@ -5,7 +5,19 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Add source files
-file(GLOB SOURCES src/*.c)
+set(SOURCES 
+    src/alink.c
+    src/alink.h
+    src/coff.c
+    src/cofflib.c
+    src/combine.c
+    src/objload.c
+    src/output.c
+    src/output_com.c
+    src/output_exe.c
+    src/output_pe.c
+    src/util.c
+)
 
 add_executable(ALink ${SOURCES})
 

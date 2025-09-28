@@ -2,6 +2,7 @@
 
 char case_sensitive = 1;
 char pad_segments = 0;
+char patch_near_branches = 0;
 char map_file = 0;
 PCHAR map_name = 0;
 USHORT max_alloc = ~0;
@@ -31,6 +32,7 @@ int build_dll = FALSE;
 PUCHAR stub_name = NULL;
 
 long error_count = 0;
+long unresolved_external_warnings_count = 0;
 
 UCHAR buffer[0x10000];
 PDATABLOCK lidata;
@@ -49,7 +51,7 @@ PLIBFILE library_files = NULL;
 PRESOURCE resource = NULL;
 PSORTENTRY comdat_entries = NULL;
 PPCHAR mod_name;
-PPCHAR file_name;
+PPCHAR owner_file_name;
 UINT name_count = 0, name_min = 0,
 pubcount = 0, pubmin = 0,
 segcount = 0, segmin = 0, outcount = 0,
@@ -210,7 +212,7 @@ static BOOL process_command_line(int argc, char** argv)
 				//NOTICE:
 				//exit(1);
 				break;
-			case 'p':
+				case 'p':
 				switch (strlen(argv[i]))
 				{
 				case 2:
@@ -225,6 +227,30 @@ static BOOL process_command_line(int argc, char** argv)
 					else if (argv[i][2] == '-')
 					{
 						pad_segments = 0;
+						break;
+					}
+				default:
+					printf("Invalid switch %s\n", argv[i]);
+					return FALSE;
+					//NOTICE:
+					//exit(1);
+				}
+				break;
+			case 'z':
+				switch (strlen(argv[i]))
+				{
+				case 2:
+					patch_near_branches = 1;
+					break;
+				case 3:
+					if (argv[i][2] == '+')
+					{
+						patch_near_branches = 1;
+						break;
+					}
+					else if (argv[i][2] == '-')
+					{
+						patch_near_branches = 0;
 						break;
 					}
 				default:
@@ -766,19 +792,19 @@ static BOOL process_command_line(int argc, char** argv)
 		}
 		else
 		{
-			file_name = check_realloc(file_name, (filecount + 1) * sizeof(PCHAR));
-			file_name[filecount] = check_malloc(strlen(argv[i]) + 1);
-			memcpy(file_name[filecount], argv[i], strlen(argv[i]) + 1);
-			for (j = (long)strlen(file_name[filecount]);
-				j && (file_name[filecount][j] != '.') &&
-				(file_name[filecount][j] != PATH_CHAR);
+			owner_file_name = check_realloc(owner_file_name, (filecount + 1) * sizeof(PCHAR));
+			owner_file_name[filecount] = check_malloc(strlen(argv[i]) + 1);
+			memcpy(owner_file_name[filecount], argv[i], strlen(argv[i]) + 1);
+			for (j = (long)strlen(owner_file_name[filecount]);
+				j && (owner_file_name[filecount][j] != '.') &&
+				(owner_file_name[filecount][j] != PATH_CHAR);
 				j--);
-			if ((j < 0) || (file_name[filecount][j] != '.'))
+			if ((j < 0) || (owner_file_name[filecount][j] != '.'))
 			{
-				j = (long)strlen(file_name[filecount]);
+				j = (long)strlen(owner_file_name[filecount]);
 				/* add default extension if none specified */
-				file_name[filecount] = check_realloc(file_name[filecount], strlen(argv[i]) + 5);
-				strcpy(file_name[filecount] + j, DEFAULT_EXTENSION);
+				owner_file_name[filecount] = check_realloc(owner_file_name[filecount], strlen(argv[i]) + 5);
+				strcpy(owner_file_name[filecount] + j, DEFAULT_EXTENSION);
 			}
 			filecount++;
 		}
@@ -805,6 +831,9 @@ static BOOL process_command_line(int argc, char** argv)
 		printf("    -m      Enable map file\n");
 		printf("    -m+     Enable map file\n");
 		printf("    -m-     Disable map file\n");
+		printf("    -x      Enable patching for near call or jumps\n");
+		printf("    -x+     Enable patching for near call or jumps\n");
+		printf("    -x-     Disable patching for near call or jumps\n");
 		printf("----Press Enter to continue---");
 		while (((c = getchar()) != '\n') && (c != EOF));
 		printf("\n");
@@ -1340,7 +1369,7 @@ static void sort_segments()
 	{
 		if (group_list[i])
 		{
-			group_list[i]->segnum = -1;
+			group_list[i]->segment_number = -1;
 			for (j = 0; j < group_list[i]->numsegs; j++)
 			{
 				k = group_list[i]->segindex[j];
@@ -1404,9 +1433,9 @@ static void sort_segments()
 						}
 						segment_list[k]->absolute_frame = 1;
 						segment_list[k]->absolute_offset = i + 1;
-						if (group_list[i]->segnum < 0)
+						if (group_list[i]->segment_number < 0)
 						{
-							group_list[i]->segnum = k;
+							group_list[i]->segment_number = k;
 						}
 						if (outcount == 0)
 						{
@@ -1494,7 +1523,7 @@ static void sort_segments()
 	}
 	for (i = 0; i < grpcount; i++)
 	{
-		if (group_list[i] && (group_list[i]->segnum < 0)) group_list[i]->segnum = baseSeg;
+		if (group_list[i] && (group_list[i]->segment_number < 0)) group_list[i]->segment_number = baseSeg;
 	}
 }
 
@@ -1505,20 +1534,20 @@ static void load_files()
 
 	for (i = 0; i < filecount; i++)
 	{
-		a_file = fopen(file_name[i], "rb");
-		if (!strchr(file_name[i], PATH_CHAR))
+		a_file = fopen(owner_file_name[i], "rb");
+		if (!strchr(owner_file_name[i], PATH_CHAR))
 		{
 			/* if no path specified, search library path list */
 			for (j = 0; !a_file && j < lib_path_count; j++)
 			{
-				name = (char*)check_malloc(strlen(lib_path[j]) + strlen(file_name[i]) + 1);
+				name = (char*)check_malloc(strlen(lib_path[j]) + strlen(owner_file_name[i]) + 1);
 				strcpy(name, lib_path[j]);
-				strcat(name, file_name[i]);
+				strcat(name, owner_file_name[i]);
 				a_file = fopen(name, "rb");
 				if (a_file)
 				{
-					free(file_name[i]);
-					file_name[i] = name;
+					free(owner_file_name[i]);
+					owner_file_name[i] = name;
 					name = NULL;
 				}
 				else
@@ -1530,12 +1559,12 @@ static void load_files()
 		}
 		if (!a_file)
 		{
-			printf("Error opening file %s\n", file_name[i]);
+			printf("Error opening file %s\n", owner_file_name[i]);
 			exit(1);
 		}
 		for (k = 0; k < i; ++k)
 		{
-			if (!strcmp(file_name[i], file_name[k])) break;
+			if (!strcmp(owner_file_name[i], owner_file_name[k])) break;
 		}
 		if (k != i)
 		{
@@ -1544,28 +1573,28 @@ static void load_files()
 		}
 
 		file_position = 0;
-		printf("Loading file %s\n", file_name[i]);
+		printf("Loading file %s\n", owner_file_name[i]);
 		j = fgetc(a_file);
 		fseek(a_file, 0, SEEK_SET);
 		switch (j)
 		{
 		case LIBHDR:
-			load_lib(file_name[i], a_file);
+			load_lib(owner_file_name[i], a_file);
 			break;
 		case THEADR:
 		case LHEADR:
-			load_mod(file_name[i], a_file);
+			load_mod(owner_file_name[i], a_file);
 			break;
 		case 0:
-			load_resource(file_name[i], a_file);
+			load_resource(owner_file_name[i], a_file);
 			break;
 		case 0x4c:
 		case 0x4d:
 		case 0x4e:
-			load_coff(file_name[i], a_file);
+			load_coff(owner_file_name[i], a_file);
 			break;
 		case 0x21:
-			load_coff_lib(file_name[i], a_file);
+			load_coff_lib(owner_file_name[i], a_file);
 			break;
 		default:
 			printf("Unknown file type\n");
@@ -1681,14 +1710,32 @@ static void generate_map()
 			q = (PPUBLIC)public_entries[i].object[j];
 			if (q->mod) continue;
 
-			fprintf(a_file, "%s at %s:%08lX\n",
-				public_entries[i].id,
-				(q->segment >= 0) ? name_list[segment_list[q->segment]->name_index]
-				: "Absolute",
-				q->offset);
+			if (q->segment >= 0) {
+				fprintf(a_file, "%s @ %s:%08lX\n",
+					public_entries[i].id,
+					name_list[segment_list[q->segment]->name_index],
+					q->offset);
+			}
+			else {
+				fprintf(a_file, "%s = %08lX\n",
+					public_entries[i].id,
+					q->offset);
+			}
 		}
 	}
+	if (extcount) {
+		fprintf(a_file, "\n %li externs:\n", extcount);
+		for (i = 0; i < extcount; i++)
+		{
+			fprintf(a_file, "%s(%d) type=%ld, import = %08X\n"
+				, extern_records[i].name
+				, i
+				, extern_records[i].type
+				, extern_records[i].import
+			);
+		}
 
+	}
 	if (expcount)
 	{
 		fprintf(a_file, "\n %li exports:\n", expcount);
@@ -1763,8 +1810,8 @@ int main(int argc, char* argv[])
 	if (!out_name)
 	{
 		//first obj's name as default name
-		out_name = check_malloc(strlen(file_name[0]) + 1 + 4);
-		strcpy(out_name, file_name[0]);
+		out_name = check_malloc(strlen(owner_file_name[0]) + 1 + 4);
+		strcpy(out_name, owner_file_name[0]);
 		i = (long)strlen(out_name);
 		while ((i >= 0) && (out_name[i] != '.') && (out_name[i] != PATH_CHAR) && (out_name[i] != ':'))
 		{
@@ -1904,6 +1951,7 @@ int main(int argc, char* argv[])
 		{
 			printf("Unresolved external %s\n", extern_records[i].name);
 			error_count++;
+			unresolved_external_warnings_count++;
 		}
 		else if (extern_records[i].flags == EXT_MATCHEDPUBLIC)
 		{
@@ -1911,12 +1959,16 @@ int main(int argc, char* argv[])
 			{
 				printf("Unresolved external %s with alias %s\n", extern_records[i].name, extern_records[i].pubdef->alias);
 				error_count++;
+				unresolved_external_warnings_count++;
 			}
 		}
 	}
 
-	if (error_count != 0)
+	if (error_count)
 	{
+		if (unresolved_external_warnings_count) {
+			printf("Warning: %d unresolved externals\n", unresolved_external_warnings_count);
+		}
 		return 1;
 		//NOTICE:
 		//exit(1);

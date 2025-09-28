@@ -150,6 +150,11 @@ void combine_segments(PCHAR fname, long dest, long src)
 	free(segment_list[src]->data);
 	free(segment_list[dest]->data_mask);
 	free(segment_list[src]->data_mask);
+	segment_list[src]->data = NULL;
+	segment_list[dest]->data = NULL;
+	segment_list[src]->data_mask = NULL;
+	segment_list[dest]->data_mask = NULL;
+
 	segment_list[dest]->data = p;
 	segment_list[dest]->data_mask = q;
 
@@ -233,7 +238,7 @@ void combine_segments(PCHAR fname, long dest, long src)
 	}
 
 	free(segment_list[src]);
-	segment_list[src] = 0;
+	segment_list[src] = NULL;
 }
 
 void combine_common(PCHAR fname, long i, long j)
@@ -371,7 +376,8 @@ void combine_groups(PCHAR fname, long i, long j)
 		if (!match)
 		{
 			group_list[i]->numsegs++;
-			group_list[i]->segindex[group_list[i]->numsegs] = group_list[j]->segindex[n];
+			group_list[i]->segindex[group_list[i]->numsegs] 
+				= group_list[j]->segindex[n];
 		}
 	}
 	free(group_list[j]);
@@ -429,8 +435,8 @@ void combine_blocks(PCHAR fname)
 	{
 		if (segment_list[i] && ((segment_list[i]->attributes & SEG_ALIGN) != SEG_ABS))
 		{
-			segcount_combined++;
 			if (segment_list[i]->win_flags & WINF_COMDAT) continue; /* don't combine COMDAT segments */
+			segcount_combined++;
 			name = name_list[segment_list[i]->name_index];
 			attr = segment_list[i]->attributes & (SEG_COMBINE | SEG_USE32);
 			switch (attr & SEG_COMBINE)
@@ -527,5 +533,3 @@ void combine_blocks(PCHAR fname)
 		}
 	}
 }
-
-

@@ -152,6 +152,7 @@
 #define SEG_COMMON 0x18
 #define SEG_PUBLIC3 0x1c
 
+#define NUMBER_TARGET -1
 #define REL_SEGDISP 0
 #define REL_EXTDISP 2
 #define REL_GRPDISP 1
@@ -371,6 +372,7 @@ typedef struct __sortentry
 } SORTENTRY, * PSORTENTRY;
 
 typedef struct __seg {
+	PCHAR name;
 	long name_index;
 	long class_index;
 	long overlay_index;
@@ -438,6 +440,8 @@ typedef struct __comdef {
 } COMREC, * PCOMREC, ** PPCOMREC;
 
 typedef struct __reloc {
+	PCHAR owner_file_name;
+	UINT offset_in_file;
 	UINT offset;
 	long segment;
 	unsigned char ftype, ttype;
@@ -452,11 +456,11 @@ typedef struct __grp {
 	long name_index;
 	long numsegs;
 	long segindex[256];
-	long segnum;
+	long segment_number;
 } GRP, * PGRP, ** PPGRP;
 
 typedef struct __libfile {
-	PCHAR file_name;
+	PCHAR owner_file_name;
 	unsigned short block_size;
 	unsigned short num_dic_pages;
 	UINT dic_start;
@@ -522,7 +526,7 @@ void load_coff(PCHAR name, FILE* objfile);
 void load_coff_import(PCHAR name, FILE* objfile);
 void load_fixup(PCHAR fname, PRELOC r, PUCHAR buf, long* p);
 void reloc_lidata(PCHAR fname, PDATABLOCK p, long* ofs, PRELOC r);
-void emit_lidata(PCHAR fname, PDATABLOCK p, long segnum, long* ofs);
+void emit_lidata(PCHAR fname, PDATABLOCK p, long segment_number, long* ofs);
 PDATABLOCK build_lidata(long* bufofs);
 void destroy_lidata(PDATABLOCK p);
 void report_error(PCHAR fname, long errnum);
@@ -542,6 +546,7 @@ void sort_insert(PSORTENTRY* plist, UINT* pcount, char* key, void* object);
 
 extern char case_sensitive;
 extern char pad_segments;
+extern char patch_near_branches;
 extern char map_file;
 extern PCHAR map_name;
 extern unsigned short max_alloc;
@@ -569,6 +574,7 @@ extern unsigned char sub_system_major, sub_system_minor;
 extern unsigned int sub_system;
 
 extern long error_count;
+extern long undefined_segs_warnings_count;
 
 extern UCHAR buffer[0x10000];
 extern PDATABLOCK lidata;
@@ -585,7 +591,7 @@ extern PEXPREC export_definitions;
 extern PLIBFILE library_files;
 extern PRESOURCE resource;
 extern PPCHAR mod_name;
-extern PPCHAR file_name;
+extern PPCHAR owner_file_name;
 extern PSORTENTRY comdat_entries;
 extern UINT name_count, name_min,
 pubcount, pubmin,

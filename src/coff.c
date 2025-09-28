@@ -506,6 +506,7 @@ void load_coff(PCHAR fname, FILE* objfile)
 			/* get address to relocate */
 			relocations[fixcount]->offset = buf[0] + (buf[1] << 8) + (buf[2] << 16) + (buf[3] << 24);
 			relocations[fixcount]->offset -= relshift;
+			relocations[fixcount]->offset_in_file = relocations[fixcount]->offset;
 			/* get segment */
 			relocations[fixcount]->segment = i + minseg;
 			relocations[fixcount]->disp = 0;

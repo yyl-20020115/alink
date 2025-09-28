@@ -16,8 +16,8 @@ void load_coff_lib(PCHAR libname, FILE* libfile)
 
 	library_files = check_realloc(library_files, (libcount + 1) * sizeof(LIBFILE));
 	p = &library_files[libcount];
-	p->file_name = check_malloc(strlen(libname) + 1);
-	strcpy(p->file_name, libname);
+	p->owner_file_name = check_malloc(strlen(libname) + 1);
+	strcpy(p->owner_file_name, libname);
 	startPoint = ftell(libfile);
 
 	if (fread(buffer, 1, 8, libfile) != 8)
