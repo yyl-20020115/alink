@@ -1,11 +1,11 @@
 #include "alink.h"
 
-BOOL get_fixup_target(PCHAR fname, PRELOC relocation, long* _target_segment, UINT* _target_offset, int is_flat)
+BOOL get_fixup_target(PCHAR fname, PRELOC relocation, long* _target_segment_number, UINT* _target_offset, int is_flat)
 {
 	long base_segment_number = -1L;
 	long target_segment_number = -1L;
 	UINT target_offset = 0;
-	*_target_segment = -1;
+	*_target_segment_number = -1;
 	*_target_offset = -1;
 
 	if (relocation->segment < 0) return FALSE;
@@ -139,7 +139,7 @@ BOOL get_fixup_target(PCHAR fname, PRELOC relocation, long* _target_segment, UIN
 				extern_records[relocation->target].pubdef->offset
 			);
 #endif
-			_target_segment = target_segment_number;
+			_target_segment_number = target_segment_number;
 			return TRUE;
 			//NOTICE:
 			error_count++;
@@ -195,19 +195,19 @@ BOOL get_fixup_target(PCHAR fname, PRELOC relocation, long* _target_segment, UIN
 			}
 			target_offset += segment_list[target_segment_number]->base - segment_list[base_segment_number]->base;
 			target_offset &= 0xffff;
-			*_target_segment = base_segment_number;
+			*_target_segment_number = base_segment_number;
 			*_target_offset = target_offset;
 		}
 		else
 		{
-			*_target_segment = -1;
+			*_target_segment_number = -1;
 			*_target_offset = target_offset + segment_list[target_segment_number]->base;
 		}
 	}
 	else
 	{
 		//printf("relocation error occurred\n");
-		*_target_segment = 0;
+		*_target_segment_number = 0;
 		*_target_offset = 0;
 		return FALSE;
 	}

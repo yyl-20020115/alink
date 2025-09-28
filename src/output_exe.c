@@ -3,15 +3,15 @@ BOOL output_exe_file(PCHAR out_name)
 {
 	long i, j;
 	UINT started, lastout;
-	long target_segment;
+	long target_segment_order;
 	UINT target_offset;
 	FILE* outfile;
 	PUCHAR header_buffer;
 	long relocation_count;
 	int got_stack;
 	UINT totlength;
-	USHORT temp_segment;
-	unsigned long temp_offset;
+	USHORT temporary_segment;
+	unsigned long temporary_offset;
 
 	if (impsreq)
 	{
@@ -112,9 +112,9 @@ BOOL output_exe_file(PCHAR out_name)
 
 	for (i = 0; i < fixcount; i++)
 	{
-		BOOL found = get_fixup_target(out_name, relocations[i], &target_segment, &target_offset, FALSE);
+		BOOL found = get_fixup_target(out_name, relocations[i], &target_segment_order, &target_offset, FALSE);
 
-		if (target_segment != NUMBER_TARGET) {
+		if (target_segment_order != NUMBER_TARGET) {
 			switch (relocations[i]->rtype)
 			{
 			case FIX_BASE:
@@ -132,69 +132,69 @@ BOOL output_exe_file(PCHAR out_name)
 
 						error_count++;
 					}
-					temp_segment = segment_list[relocations[i]->segment]->data[j];
-					temp_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
-					temp_segment += (UCHAR)target_offset;
-					temp_segment += segment_list[target_segment]->base & 0xf; /* non-para seg */
-					segment_list[relocations[i]->segment]->data[j] = temp_segment & 0xff;
-					segment_list[relocations[i]->segment]->data[j + 1] = (temp_segment >> 8) & 0xff;
+					temporary_segment = segment_list[relocations[i]->segment]->data[j];
+					temporary_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+					temporary_segment += (UCHAR)target_offset;
+					temporary_segment += segment_list[target_segment_order]->base & 0xf; /* non-para seg */
+					segment_list[relocations[i]->segment]->data[j] = temporary_segment & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 1] = (temporary_segment >> 8) & 0xff;
 					j += 2;
 				}
 				else if (relocations[i]->rtype == FIX_PTR1632)
 				{
-					temp_offset = segment_list[relocations[i]->segment]->data[j];
-					temp_offset += segment_list[relocations[i]->segment]->data[j + 1] << 8;
-					temp_offset += segment_list[relocations[i]->segment]->data[j + 2] << 16;
-					temp_offset += segment_list[relocations[i]->segment]->data[j + 3] << 24;
-					temp_offset += target_offset;
-					temp_offset += segment_list[target_segment]->base & 0xf; /* non-para seg */
-					segment_list[relocations[i]->segment]->data[j] = temp_offset & 0xff;
-					segment_list[relocations[i]->segment]->data[j + 1] = (temp_offset >> 8) & 0xff;
-					segment_list[relocations[i]->segment]->data[j + 2] = (temp_offset >> 16) & 0xff;
-					segment_list[relocations[i]->segment]->data[j + 3] = (temp_offset >> 24) & 0xff;
+					temporary_offset = segment_list[relocations[i]->segment]->data[j];
+					temporary_offset += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+					temporary_offset += segment_list[relocations[i]->segment]->data[j + 2] << 16;
+					temporary_offset += segment_list[relocations[i]->segment]->data[j + 3] << 24;
+					temporary_offset += target_offset;
+					temporary_offset += segment_list[target_segment_order]->base & 0xf; /* non-para seg */
+					segment_list[relocations[i]->segment]->data[j] = temporary_offset & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 1] = (temporary_offset >> 8) & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 2] = (temporary_offset >> 16) & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 3] = (temporary_offset >> 24) & 0xff;
 					j += 4;
 				}
-				if ((segment_list[target_segment]->attributes & SEG_ALIGN) != SEG_ABS)
+				if ((segment_list[target_segment_order]->attributes & SEG_ALIGN) != SEG_ABS)
 				{
-					if (segment_list[target_segment]->base > 0xfffff)
+					if (segment_list[target_segment_order]->base > 0xfffff)
 					{
 						printf("Relocs %li:Segment base out of range\n", i);
 						error_count++;
 					}
-					temp_segment = segment_list[relocations[i]->segment]->data[j];
-					temp_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
-					temp_segment += (UCHAR)(segment_list[target_segment]->base >> 4);
-					segment_list[relocations[i]->segment]->data[j] = temp_segment & 0xff;
-					segment_list[relocations[i]->segment]->data[j + 1] = (temp_segment >> 8) & 0xff;
-					temp_offset = segment_list[relocations[i]->segment]->base >> 4;
-					header_buffer[0x40 + relocation_count * 4 + 2] = temp_offset & 0xff;
-					header_buffer[0x40 + relocation_count * 4 + 3] = (temp_offset >> 8) & 0xff;
-					temp_offset = (segment_list[relocations[i]->segment]->base & 0xf) + j;
-					header_buffer[0x40 + relocation_count * 4] = (temp_offset) & 0xff;
-					header_buffer[0x40 + relocation_count * 4 + 1] = (temp_offset >> 8) & 0xff;
+					temporary_segment = segment_list[relocations[i]->segment]->data[j];
+					temporary_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+					temporary_segment += (UCHAR)(segment_list[target_segment_order]->base >> 4);
+					segment_list[relocations[i]->segment]->data[j] = temporary_segment & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 1] = (temporary_segment >> 8) & 0xff;
+					temporary_offset = segment_list[relocations[i]->segment]->base >> 4;
+					header_buffer[0x40 + relocation_count * 4 + 2] = temporary_offset & 0xff;
+					header_buffer[0x40 + relocation_count * 4 + 3] = (temporary_offset >> 8) & 0xff;
+					temporary_offset = (segment_list[relocations[i]->segment]->base & 0xf) + j;
+					header_buffer[0x40 + relocation_count * 4] = (temporary_offset) & 0xff;
+					header_buffer[0x40 + relocation_count * 4 + 1] = (temporary_offset >> 8) & 0xff;
 					relocation_count++;
 				}
 				else
 				{
-					temp_segment = segment_list[relocations[i]->segment]->data[j];
-					temp_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
-					temp_segment += (UCHAR)segment_list[target_segment]->absolute_frame;
-					segment_list[relocations[i]->segment]->data[j] = temp_segment & 0xff;
-					segment_list[relocations[i]->segment]->data[j + 1] = (temp_segment >> 8) & 0xff;
+					temporary_segment = segment_list[relocations[i]->segment]->data[j];
+					temporary_segment += segment_list[relocations[i]->segment]->data[j + 1] << 8;
+					temporary_segment += (UCHAR)segment_list[target_segment_order]->absolute_frame;
+					segment_list[relocations[i]->segment]->data[j] = temporary_segment & 0xff;
+					segment_list[relocations[i]->segment]->data[j + 1] = (temporary_segment >> 8) & 0xff;
 				}
 				break;
 			case FIX_OFS32:
 			case FIX_OFS32_2:
-				temp_offset = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
-				temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
-				temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
-				temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
-				temp_offset += target_offset;
-				temp_offset += segment_list[target_segment]->base & 0xf; /* non-para seg */
-				segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temp_offset & 0xff;
-				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temp_offset >> 8) & 0xff;
-				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (temp_offset >> 16) & 0xff;
-				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (temp_offset >> 24) & 0xff;
+				temporary_offset = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+				temporary_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+				temporary_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+				temporary_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
+				temporary_offset += target_offset;
+				temporary_offset += segment_list[target_segment_order]->base & 0xf; /* non-para seg */
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temporary_offset & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temporary_offset >> 8) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (temporary_offset >> 16) & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (temporary_offset >> 24) & 0xff;
 				break;
 			case FIX_OFS16:
 			case FIX_OFS16_2:
@@ -206,30 +206,30 @@ BOOL output_exe_file(PCHAR out_name)
 					);
 					error_count++;
 				}
-				temp_segment = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
-				temp_segment += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
-				temp_segment += (UCHAR)target_offset;
-				temp_segment += segment_list[target_segment]->base & 0xf; /* non-para seg */
-				segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temp_segment & 0xff;
-				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temp_segment >> 8) & 0xff;
+				temporary_segment = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+				temporary_segment += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+				temporary_segment += (UCHAR)target_offset;
+				temporary_segment += segment_list[target_segment_order]->base & 0xf; /* non-para seg */
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temporary_segment & 0xff;
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temporary_segment >> 8) & 0xff;
 				break;
 			case FIX_LBYTE:
 				segment_list[relocations[i]->segment]->data[relocations[i]->offset] += target_offset & 0xff;
-				segment_list[relocations[i]->segment]->data[relocations[i]->offset] += segment_list[target_segment]->base & 0xf; /* non-para seg */
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset] += segment_list[target_segment_order]->base & 0xf; /* non-para seg */
 				break;
 			case FIX_HBYTE:
-				temp_offset = target_offset + (segment_list[target_segment]->base & 0xf); /* non-para seg */
-				segment_list[relocations[i]->segment]->data[relocations[i]->offset] += (temp_offset >> 8) & 0xff;
+				temporary_offset = target_offset + (segment_list[target_segment_order]->base & 0xf); /* non-para seg */
+				segment_list[relocations[i]->segment]->data[relocations[i]->offset] += (temporary_offset >> 8) & 0xff;
 				break;
 			case FIX_SELF_LBYTE:
-				if ((segment_list[target_segment]->attributes & SEG_ALIGN) == SEG_ABS)
+				if ((segment_list[target_segment_order]->attributes & SEG_ALIGN) == SEG_ABS)
 				{
 					printf("Error: Absolute Reloc target not supported for self-relative fixups\n");
 					error_count++;
 				}
 				else
 				{
-					j = segment_list[target_segment]->base + target_offset;
+					j = segment_list[target_segment_order]->base + target_offset;
 					j -= segment_list[relocations[i]->segment]->base + relocations[i]->offset + 1;
 					if ((j < -128) || (j > 127))
 					{
@@ -250,14 +250,14 @@ BOOL output_exe_file(PCHAR out_name)
 				break;
 			case FIX_SELF_OFS16:
 			case FIX_SELF_OFS16_2:
-				if ((segment_list[target_segment]->attributes & SEG_ALIGN) == SEG_ABS)
+				if ((segment_list[target_segment_order]->attributes & SEG_ALIGN) == SEG_ABS)
 				{
 					printf("Error: Absolute reloc target not supported for self-relative fixups\n");
 					error_count++;
 				}
 				else
 				{
-					j = segment_list[target_segment]->base + target_offset;
+					j = segment_list[target_segment_order]->base + target_offset;
 					long d = j - segment_list[relocations[i]->segment]->base + relocations[i]->offset + 2;
 					if ((d < -32768) || (d > 32767))
 					{
@@ -325,34 +325,34 @@ BOOL output_exe_file(PCHAR out_name)
 					else
 					{
 						j = d;
-						temp_segment = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
-						temp_segment += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
-						temp_segment += (UCHAR)j;
-						segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temp_segment & 0xff;
-						segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temp_segment >> 8) & 0xff;
+						temporary_segment = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+						temporary_segment += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+						temporary_segment += (UCHAR)j;
+						segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temporary_segment & 0xff;
+						segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temporary_segment >> 8) & 0xff;
 					}
 				}
 				break;
 			case FIX_SELF_OFS32:
 			case FIX_SELF_OFS32_2:
-				if ((segment_list[target_segment]->attributes & SEG_ALIGN) == SEG_ABS)
+				if ((segment_list[target_segment_order]->attributes & SEG_ALIGN) == SEG_ABS)
 				{
 					printf("Error: Absolute reloc target not supported for self-relative fixups\n");
 					error_count++;
 				}
 				else
 				{
-					j = segment_list[target_segment]->base + target_offset;
+					j = segment_list[target_segment_order]->base + target_offset;
 					j -= segment_list[relocations[i]->segment]->base + relocations[i]->offset + 4;
-					temp_offset = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
-					temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
-					temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
-					temp_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
-					temp_offset += j;
-					segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temp_offset & 0xff;
-					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temp_offset >> 8) & 0xff;
-					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (temp_offset >> 16) & 0xff;
-					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (temp_offset >> 24) & 0xff;
+					temporary_offset = segment_list[relocations[i]->segment]->data[relocations[i]->offset];
+					temporary_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] << 8;
+					temporary_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] << 16;
+					temporary_offset += segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] << 24;
+					temporary_offset += j;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset] = temporary_offset & 0xff;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 1] = (temporary_offset >> 8) & 0xff;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 2] = (temporary_offset >> 16) & 0xff;
+					segment_list[relocations[i]->segment]->data[relocations[i]->offset + 3] = (temporary_offset >> 24) & 0xff;
 				}
 				break;
 			default:
