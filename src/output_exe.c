@@ -292,6 +292,12 @@ BOOL output_exe_file(PCHAR out_name)
 								data = segment_list[segcount_combined - 1]->data
 									 = (PUCHAR)realloc(
 										segment_list[segcount_combined-1]->data,length);
+								PUCHAR data_mask =
+									segment_list[segcount_combined - 1]->data_mask =
+									(PUCHAR)realloc(segment_list[segcount_combined - 1]->data_mask,
+										(length+7) >> 3);
+								set_n_bit(data_mask, length - 1);
+								set_n_bit(data_mask, length - 2);
 								//printf("Direct offset is stored in %08X\n",length-2);
 								switch (p[2])
 								{
@@ -470,6 +476,9 @@ BOOL output_exe_file(PCHAR out_name)
 		{
 			printf("Memory requirements too high\n");
 		}
+		else {
+			i = i;
+		}
 		header_buffer[0x0a] = (UCHAR)(i & 0xff);
 		header_buffer[0x0b] = (UCHAR)(i >> 8);
 		if (fwrite(header_buffer, 1, 12, outfile) != 12)
@@ -479,6 +488,9 @@ BOOL output_exe_file(PCHAR out_name)
 			//NOTICE:
 			//exit(1);
 		}
+	}
+	else {
+		lastout = started;
 	}
 	fclose(outfile);
 	return TRUE;

@@ -477,12 +477,12 @@ void load_coff(PCHAR fname, FILE* objfile)
 					printf("Invalid COFF object file\n");
 					exit(1);
 				}
-				for (j = 0; j < (segment_list[segcount]->length + 7) / 8; j++)
+				for (j = 0; j < (segment_list[segcount]->length + 7) >> 3; j++)
 					segment_list[segcount]->data_mask[j] = 0xff;
 			}
 			else
 			{
-				for (j = 0; j < (segment_list[segcount]->length + 7) / 8; j++)
+				for (j = 0; j < (segment_list[segcount]->length + 7) >> 3; j++)
 					segment_list[segcount]->data_mask[j] = 0;
 			}
 

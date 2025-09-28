@@ -162,8 +162,8 @@ static void build_pe_imports(long impsectNum, PUCHAR objectTable)
 	impsect->length += i;
 
 	impsect->data = (PUCHAR)check_malloc(impsect->length);
-	impsect->data_mask = (PUCHAR)check_malloc((impsect->length + 7) / 8);
-	for (i = 0; i < (impsect->length + 7) / 8; i++)
+	impsect->data_mask = (PUCHAR)check_malloc((impsect->length + 7) >> 3);
+	for (i = 0; i < (impsect->length + 7) >> 3; i++)
 	{
 		impsect->data_mask[i] = 0xff;
 	}
@@ -587,8 +587,8 @@ static void build_pe_relocs(long relocSectNum, PUCHAR object_table)
 		relocate_section->data[4] = 12; /* size of block */
 	}
 
-	relocate_section->data_mask = (PUCHAR)check_malloc((relocate_section->length + 7) / 8);
-	for (i = 0; i < (relocate_section->length + 7) / 8; i++)
+	relocate_section->data_mask = (PUCHAR)check_malloc((relocate_section->length + 7)>>3);
+	for (i = 0; i < (relocate_section->length + 7) >>3; i++)
 	{
 		relocate_section->data_mask[i] = 0xff;
 	}
@@ -952,8 +952,8 @@ static void build_pe_exports(long SectNum, PUCHAR objectTable, PUCHAR name)
 		export_section->data[15] = ((nameSpaceStart + export_section->base - image_base) >> 24) & 0xff;
 	}
 
-	export_section->data_mask = (PUCHAR)check_malloc((export_section->length + 7) / 8);
-	for (i = 0; i < (export_section->length + 7) / 8; i++)
+	export_section->data_mask = (PUCHAR)check_malloc((export_section->length + 7) >>3);
+	for (i = 0; i < (export_section->length + 7) >>3; i++)
 	{
 		export_section->data_mask[i] = 0xff;
 	}
@@ -1385,7 +1385,7 @@ static void build_pe_resources(long sectNum, PUCHAR objectTable)
 	}
 
 	/* mark whole section as required output */
-	for (i = 0; i < (resource_section->length + 7) / 8; i++)
+	for (i = 0; i < (resource_section->length + 7) >> 3; i++)
 		resource_section->data_mask[i] = 0xff;
 
 	/* update object table */

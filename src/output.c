@@ -10,8 +10,8 @@ BOOL get_fixup_target(PCHAR fname, PRELOC relocation, long* _target_segment, UIN
 
 	if (relocation->segment < 0) return FALSE;
 
-	relocation->output_pos 
-		= segment_list[relocation->segment]->base 
+	relocation->output_pos
+		= segment_list[relocation->segment]->base
 		+ relocation->offset;
 
 	switch (relocation->ftype)
@@ -186,10 +186,10 @@ BOOL get_fixup_target(PCHAR fname, PRELOC relocation, long* _target_segment, UIN
 		}
 		if (!is_flat || ((segment_list[base_segment_number]->attributes & SEG_ALIGN) == SEG_ABS))
 		{
-			if (segment_list[base_segment_number]->base > (segment_list[target_segment_number]->base + target_offset))
+			if (base_segment_number <= target_segment_number && segment_list[base_segment_number]->base > (segment_list[target_segment_number]->base + target_offset))
 			{
 				printf("Error: target address %08X:%08X out of frame\n",
-					segment_list[base_segment_number]->base, 
+					segment_list[base_segment_number]->base,
 					segment_list[target_segment_number]->base + target_offset);
 				error_count++;
 			}

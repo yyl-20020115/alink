@@ -212,7 +212,7 @@ static BOOL process_command_line(int argc, char** argv)
 				//NOTICE:
 				//exit(1);
 				break;
-				case 'p':
+			case 'p':
 				switch (strlen(argv[i]))
 				{
 				case 2:
@@ -703,7 +703,7 @@ static BOOL process_command_line(int argc, char** argv)
 					return FALSE;
 					//NOTICE:
 					//exit(1);
-					}
+				}
 				break;
 			case 'f':
 				if (!strcasecmp(argv[i] + 1, "filealign"))
@@ -1223,8 +1223,8 @@ static void match_comdefs()
 				segment_list[segcount]->length = common_definitions[i]->length;
 				segment_list[segcount]->data = NULL;
 				segment_list[segcount]->data_mask =
-					(PUCHAR)check_malloc((common_definitions[i]->length + 7) / 8);
-				for (j = 0; j < (common_definitions[i]->length + 7) / 8; j++)
+					(PUCHAR)check_malloc((common_definitions[i]->length + 7) >> 3);
+				for (j = 0; j < (common_definitions[i]->length + 7) >> 3; j++)
 					segment_list[segcount]->data_mask[j] = 0;
 				segment_list[segcount]->attributes = SEG_PRIVATE | SEG_PARA;
 				segment_list[segcount]->win_flags = WINF_READABLE | WINF_WRITEABLE | WINF_NEG_FLAGS;
@@ -1236,8 +1236,8 @@ static void match_comdefs()
 			else if ((common_definitions[i]->length + segment_list[comfarseg]->length) > 0x10000)
 			{
 				segment_list[comfarseg]->data_mask =
-					(PUCHAR)check_malloc((segment_list[comfarseg]->length + 7) / 8);
-				for (j = 0; j < (segment_list[comfarseg]->length + 7) / 8; j++)
+					(PUCHAR)check_malloc((segment_list[comfarseg]->length + 7) >>3);
+				for (j = 0; j < (segment_list[comfarseg]->length + 7) >>3; j++)
 					segment_list[comfarseg]->data_mask[j] = 0;
 
 				segment_list = (PPSEG)check_realloc(segment_list, (segcount + 1) * sizeof(PSEG));
@@ -1299,14 +1299,14 @@ static void match_comdefs()
 		}
 	}
 	segment_list[comfarseg]->data_mask =
-		(PUCHAR)check_malloc((segment_list[comfarseg]->length + 7) / 8);
-	for (j = 0; j < (segment_list[comfarseg]->length + 7) / 8; j++)
+		(PUCHAR)check_malloc((segment_list[comfarseg]->length + 7) >>3);
+	for (j = 0; j < (segment_list[comfarseg]->length + 7) >>3; j++)
 		segment_list[comfarseg]->data_mask[j] = 0;
 
 
 	segment_list[comseg]->data_mask =
-		(PUCHAR)check_malloc((segment_list[comseg]->length + 7) / 8);
-	for (j = 0; j < (segment_list[comseg]->length + 7) / 8; j++)
+		(PUCHAR)check_malloc((segment_list[comseg]->length + 7) >> 3);
+	for (j = 0; j < (segment_list[comseg]->length + 7) >> 3; j++)
 		segment_list[comseg]->data_mask[j] = 0;
 
 
@@ -1977,7 +1977,7 @@ int main(int argc, char* argv[])
 	combine_blocks(out_name);
 	sort_segments();
 
-	if (map_file) 
+	if (map_file)
 	{
 		generate_map();
 	}
