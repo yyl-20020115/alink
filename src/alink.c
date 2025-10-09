@@ -1,6 +1,6 @@
 #include "alink.h"
 
-char case_sensitive = 1;
+char case_sensitive = 0;
 char pad_segments = 0;
 char patch_near_branches = 0;
 char map_file = 0;
@@ -69,7 +69,7 @@ libcount = 0,
 rescount = 0;
 UINT lib_path_count = 0;
 PCHAR* lib_path = NULL;
-char* entry_point_function_name = NULL;
+char* entry_point_function_name = "INIT";
 
 static BOOL process_command_line(int argc, char** argv)
 {
@@ -1919,6 +1919,8 @@ int main(int argc, char* argv[])
 		start_address.frame = extcount;
 		start_address.ttype = REL_EXTONLY;
 		start_address.target = extcount;
+		start_address.segment = 0;
+		start_address.offset = 0;
 
 		extcount++;
 		got_start_address = TRUE;
